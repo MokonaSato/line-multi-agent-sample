@@ -1,0 +1,18 @@
+[project]
+name = "line-multi-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.12",
+    "google-adk>=0.5.0",
+    "line-bot-sdk>=3.17.1",
+    "mcp[cli]>=1.8.0",
+    "mistral>=20.0.0",
+    "mistralai>=0.4.2",
+    "notion-client>=2.3.0",
+    "pydantic>=2.11.4",
+    "python-dotenv>=1.1.0",
+    "uvicorn>=0.34.2",
+]
