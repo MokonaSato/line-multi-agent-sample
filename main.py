@@ -116,8 +116,50 @@ def handle_message(event):
             ),
         )
 
-        # バックグラウンドで処理
-        asyncio.create_task(process_pdf_and_notify(text, event.source.user_id))
+        # バックグラウンドで処理の開始をログに記録
+        logger.info(f"バックグラウンド処理を開始: {text}")
+
+        # エラーハンドリングを強化した非同期処理
+        try:
+            # 使用例: asyncio.create_task(process_pdf_and_notify(text, event.source.user_id))
+            # この場合はFastAPIのバックグラウンドタスクを使うと安全かもしれません
+            task = asyncio.create_task(
+                process_pdf_and_notify(text, event.source.user_id)
+            )
+
+            # エラー発生時のコールバックを設定
+            def on_task_error(task):
+                try:
+                    # タスクの結果を取得して例外を再発生させる
+                    task.result()
+                except Exception as e:
+                    logger.error(f"バックグラウンド処理でエラー発生: {str(e)}")
+                    try:
+                        line_bot_api.push_message(
+                            event.source.user_id,
+                            TextSendMessage(
+                                text=f"処理中にエラーが発生しました: {str(e)}"
+                            ),
+                        )
+                    except Exception as push_error:
+                        logger.error(
+                            f"エラー通知の送信に失敗: {str(push_error)}"
+                        )
+
+            # エラーコールバックを設定
+            task.add_done_callback(on_task_error)
+
+        except Exception as e:
+            logger.error(f"タスク作成中にエラー発生: {str(e)}")
+            try:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(
+                        text=f"処理の開始に失敗しました: {str(e)}"
+                    ),
+                )
+            except Exception as reply_error:
+                logger.error(f"エラー返信の送信に失敗: {str(reply_error)}")
     else:
         logger.info(f"PDFのURLではないと判断: {diagnosis}")
         line_bot_api.reply_message(
