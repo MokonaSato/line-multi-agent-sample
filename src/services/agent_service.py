@@ -3,6 +3,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from src.agents.calc_agent import calculator_agent
+from config import GOOGLE_API_KEY
+
 
 # グローバル変数
 session_service = None
