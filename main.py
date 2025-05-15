@@ -1,38 +1,19 @@
-import asyncio
-import logging
 import os
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
-# from mistralai.async_client import MistralAsyncClient as MistralClient
-from mistralai.client import MistralClient
-from notion_client import Client
-from pydantic import BaseModel, HttpUrl
+from src.agents.calc_agent import calculator_agent
 
-from config import (
-    LINE_CHANNEL_ACCESS_TOKEN,
-    LINE_CHANNEL_SECRET,
-    MISTRAL_API_KEY,
-    NOTION_DATABASE_ID,
-    NOTION_TOKEN,
-)
-from utils.process_pdf import process_pdf_url
+app = FastAPI()
 
-# ロギングの設定
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# FastAPIアプリケーション
-app = FastAPI(
-    title="論文処理ボット",
-    description="論文PDFをOCR、翻訳し、Notionに保存するBotのAPI",
-)
-
-# CORSミドルウェア設定
+# CORS設定
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -41,242 +22,109 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# LINE Botの設定
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
-# Pydanticモデル
-class PDFProcessRequest(BaseModel):
-    pdf_url: HttpUrl
-    title: str = "無題の論文"
-
-
-class ProcessResponse(BaseModel):
-    status: str
-    message: str
-
-
-# クライアント初期化
-mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
-notion_client = Client(auth=NOTION_TOKEN)
-
-# LINE Bot APIクライアント
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-webhook_handler = WebhookHandler(LINE_CHANNEL_SECRET)
+handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+# セッションサービスの設定
+session_service = InMemorySessionService()
+
+# アプリケーション名の定義
+APP_NAME = "calculator_app"
+
+# Runnerの設定
+runner = Runner(
+    agent=calculator_agent,
+    app_name=APP_NAME,
+    session_service=session_service,
+)
 
 
-# デバッグヘルパー関数
-def debug_url_check(url):
-    """URLがPDFかどうかをチェックし、詳細な診断結果を返す"""
-    result = {
-        "url": url,
-        "starts_with_http": url.startswith("http"),
-        "contains_pdf": ".pdf" in url.lower(),
-        "is_valid_pdf_url": url.startswith("http") and ".pdf" in url.lower(),
-        "lower_url": url.lower(),
-    }
-    logger.info(f"URL診断結果: {result}")
-    return result
+async def call_agent_async(query: str, user_id: str):
+    """エージェントにクエリを送信し、レスポンスを返す"""
+
+    # セッションIDをユーザーIDから生成（簡易的な実装）
+    session_id = f"session_{user_id}"
+
+    # セッションが存在しない場合は作成
+    if not session_service.get_session(APP_NAME, user_id, session_id):
+        session_service.create_session(
+            app_name=APP_NAME, user_id=user_id, session_id=session_id
+        )
+
+    # ユーザーメッセージをADK形式に変換
+    content = types.Content(role="user", parts=[types.Part(text=query)])
+
+    final_response_text = "エージェントからの応答がありませんでした。"
+
+    # エージェントを実行して最終的な応答を取得
+    async for event in runner.run_async(
+        user_id=user_id, session_id=session_id, new_message=content
+    ):
+        if event.is_final_response():
+            if event.content and event.content.parts:
+                final_response_text = event.content.parts[0].text
+            elif event.actions and event.actions.escalate:
+                final_response_text = (
+                    f"エラーが発生しました: "
+                    f"{event.error_message or '詳細不明'}"
+                )
+            break
+
+    return final_response_text
 
 
-# APIエンドポイントやWebhook処理をここに記述
-# LINE Bot Webhook処理
 @app.post("/callback")
-async def line_callback(request: Request, background_tasks: BackgroundTasks):
-    # X-Line-Signature ヘッダーの取得
+async def callback(request: Request):
     signature = request.headers.get("X-Line-Signature", "")
-
-    # リクエストボディの取得
     body = await request.body()
-    body_text = body.decode("utf-8")
+    body = body.decode("utf-8")
 
     try:
-        # webhookの検証
-        webhook_handler.handle(body_text, signature)
+        handler.handle(body, signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    return {"status": "success"}
+    return "OK"
 
 
-# LINEメッセージ受信時の処理
-@webhook_handler.add(MessageEvent, message=TextMessage)
+@handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text
-    logger.info(f"受信したメッセージ: {text}")
 
-    # URLの詳細診断
-    diagnosis = debug_url_check(text)
-
-    # URLチェック
-    if diagnosis["is_valid_pdf_url"]:
-        logger.info(f"PDFのURLを検出: {text}")
-        # 処理開始メッセージを送信
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text="論文PDFの処理を開始します。処理が完了したらお知らせします。"
-            ),
+    try:
+        # Google ADKを使って応答を生成
+        response = call_agent_async(
+            query=text,
+            user_id=event.source.user_id,
         )
 
-        # バックグラウンドで処理の開始をログに記録
-        logger.info(f"バックグラウンド処理を開始: {text}")
-
-        # エラーハンドリングを強化した非同期処理
-        try:
-            # 使用例: asyncio.create_task(process_pdf_and_notify(text, event.source.user_id))
-            # この場合はFastAPIのバックグラウンドタスクを使うと安全かもしれません
-            task = asyncio.create_task(
-                process_pdf_and_notify(text, event.source.user_id)
+        # エージェントからの応答をチェック
+        if hasattr(response, "text"):
+            reply_message = response.text
+        else:
+            reply_message = (
+                "2つの数字をスペース区切りで送信してください。例: 10 20"
             )
 
-            # エラー発生時のコールバックを設定
-            def on_task_error(task):
-                try:
-                    # タスクの結果を取得して例外を再発生させる
-                    task.result()
-                except Exception as e:
-                    logger.error(f"バックグラウンド処理でエラー発生: {str(e)}")
-                    try:
-                        line_bot_api.push_message(
-                            event.source.user_id,
-                            TextSendMessage(
-                                text=f"処理中にエラーが発生しました: {str(e)}"
-                            ),
-                        )
-                    except Exception as push_error:
-                        logger.error(
-                            f"エラー通知の送信に失敗: {str(push_error)}"
-                        )
-
-            # エラーコールバックを設定
-            task.add_done_callback(on_task_error)
-
-        except Exception as e:
-            logger.error(f"タスク作成中にエラー発生: {str(e)}")
-            try:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(
-                        text=f"処理の開始に失敗しました: {str(e)}"
-                    ),
-                )
-            except Exception as reply_error:
-                logger.error(f"エラー返信の送信に失敗: {str(reply_error)}")
-    else:
-        logger.info(f"PDFのURLではないと判断: {diagnosis}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text=f"論文のPDF URLを送信してください。\n診断結果: {diagnosis}"
-            ),
-        )
-
-
-# 非同期処理と通知
-async def process_pdf_and_notify(pdf_url: str, user_id: str):
-    try:
-        logger.info(f"PDFの処理を開始: {pdf_url}")
-        result = await process_pdf_url(
-            mistral_client=mistral_client,
-            notion_client=notion_client,
-            notion_database_id=NOTION_DATABASE_ID,
-            pdf_url=pdf_url,
-        )
-
-        logger.info(f"PDFの処理結果: {result}")
-
-        # 処理結果をLINEに通知
-        if result["status"] == "success":
-            message = f"論文PDFの処理が完了しました。\nNotion URL: {result['notion_url']}"
-        else:
-            message = f"処理中にエラーが発生しました: {result['message']}"
-
-        line_bot_api.push_message(user_id, TextSendMessage(text=message))
     except Exception as e:
-        error_msg = f"PDF処理中に例外が発生: {str(e)}"
-        logger.error(error_msg)
-        line_bot_api.push_message(user_id, TextSendMessage(text=error_msg))
+        reply_message = f"エラーが発生しました: {str(e)}"
+
+    line_bot_api.reply_message(
+        event.reply_token, TextSendMessage(text=reply_message)
+    )
 
 
-# バックグラウンドタスク関数
-async def process_pdf_task(pdf_url: str, title: str = "無題の論文"):
-    try:
-        await process_pdf_url(
-            mistral_client=mistral_client,
-            notion_client=notion_client,
-            notion_database_id=NOTION_DATABASE_ID,
-            pdf_url=pdf_url,
-            title=title,
-        )
-    except Exception as e:
-        print(f"PDF処理中にエラーが発生しました: {str(e)}")
-
-
-# APIエンドポイント - 直接PDFを処理
-@app.post("/process_pdf", response_model=ProcessResponse)
-async def api_process_pdf(
-    request: PDFProcessRequest, background_tasks: BackgroundTasks
-):
-    # バックグラウンドで処理
-    background_tasks.add_task(process_pdf_task, request.pdf_url, request.title)
-
-    return {
-        "status": "processing",
-        "message": "PDFの処理を開始しました。処理が完了するとNotionにデータが保存されます。",
-    }
-
-
-# 健全性チェックエンドポイント
+# ヘルスチェック用
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "ok"}
 
 
-# テスト用エンドポイント
-@app.get("/test_pdf_url")
-async def test_pdf_url(url: str):
-    """PDFのURL判定ロジックをテストするためのエンドポイント"""
-    diagnosis = debug_url_check(url)
-
-    if diagnosis["is_valid_pdf_url"]:
-        return {
-            "result": "valid_pdf_url",
-            "diagnosis": diagnosis,
-            "message": "PDFのURLとして有効です",
-        }
-    else:
-        return {
-            "result": "invalid_pdf_url",
-            "diagnosis": diagnosis,
-            "message": "PDFのURLとして無効です",
-        }
-
-
-# テスト用エンドポイント - 実際のPDF処理をテスト
-@app.get("/test_process_pdf")
-async def test_process_pdf(url: str):
-    """PDF処理ロジックをテストするためのエンドポイント"""
-    try:
-        logger.info(f"テスト: PDFの処理を開始 {url}")
-        result = await process_pdf_url(
-            mistral_client=mistral_client,
-            notion_client=notion_client,
-            notion_database_id=NOTION_DATABASE_ID,
-            pdf_url=url,
-        )
-        logger.info(f"テスト: PDFの処理結果 {result}")
-        return {"status": "success", "result": result}
-    except Exception as e:
-        error_msg = f"テスト: PDF処理中にエラー {str(e)}"
-        logger.error(error_msg)
-        return {"status": "error", "message": error_msg}
-
-
-# アプリケーション起動設定
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        reload=True,
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)

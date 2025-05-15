@@ -1,13 +1,13 @@
 import os
-
 from dotenv import load_dotenv
 
-# 環境変数読み込み
+# 環境変数を1回だけ読み込む
 load_dotenv()
 
-# API認証情報設定
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
-NOTION_TOKEN = os.getenv("NOTION_TOKEN")
-NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
+# よく使う環境変数を定数として定義
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# 他の環境変数もここに定義できます
+
+# 環境変数が設定されているか確認
+if not GOOGLE_API_KEY:
+    print("Warning: GOOGLE_API_KEY environment variable is not set")
