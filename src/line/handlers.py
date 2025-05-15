@@ -38,22 +38,33 @@ def setup_line_handlers(
         body_text = body.decode("utf-8")
 
         try:
-            handler.handle(body_text, signature)
+            events = handler.parse(body_text, signature)
+
+            # イベントを処理
+            for event in events:
+                if isinstance(event, MessageEvent) and isinstance(
+                    event.message, TextMessage
+                ):
+                    # バックグラウンドタスクとして処理を実行
+                    background_tasks.add_task(
+                        process_line_message,
+                        text=event.message.text,
+                        user_id=event.source.user_id,
+                        reply_token=event.reply_token,
+                    )
+
+            return "OK"
         except InvalidSignatureError:
             raise HTTPException(status_code=400, detail="Invalid signature")
 
-        return "OK"
-
-    @handler.add(MessageEvent, message=TextMessage)
-    def handle_message(event):
-        """LINEメッセージイベントハンドラ"""
-        # 処理をバックグラウンドタスクとして実行
-        app.state.background_tasks.add_task(
-            process_line_message,
-            text=event.message.text,
-            user_id=event.source.user_id,
-            reply_token=event.reply_token,
-        )
-
-        # 即時応答（空のACK）してタイムアウトを防ぐ
-        # 実際の応答はバックグラウンドタスクから送信される
+    # この関数はもう必要ありません
+    # @handler.add(MessageEvent, message=TextMessage)
+    # def handle_message(event):
+    #     """LINEメッセージイベントハンドラ"""
+    #     # 処理をバックグラウンドタスクとして実行
+    #     app.state.background_tasks.add_task(
+    #         process_line_message,
+    #         text=event.message.text,
+    #         user_id=event.source.user_id,
+    #         reply_token=event.reply_token,
+    #     )

@@ -1,92 +1,42 @@
 import asyncio
 
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types  # For creating message Content/Parts
+from src.services.agent_service import call_agent_async, setup_agent_runner
 
-# config.pyをインポートして環境変数にアクセス
-from config import GOOGLE_API_KEY  # noqa: F401
-from src.agents.calc_agent import calculator_agent
+# Define constants for test purposes
+USER_ID = "test_user_1"
 
-session_service = InMemorySessionService()
-
-# Define constants for identifying the interaction context
-APP_NAME = "calculator_app"
-USER_ID = "user_1"
-SESSION_ID = "session_001"  # Using a fixed ID for simplicity
-
-# Create the specific session where the conversation will happen
-session = session_service.create_session(
-    app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
-)
-print(
-    (
-        f"Session created: App='{APP_NAME}', "
-        f"User='{USER_ID}', Session='{SESSION_ID}'"
-    )
-)
-
-# --- Runner ---
-# Key Concept: Runner orchestrates the agent execution loop.
-runner = Runner(
-    agent=calculator_agent,  # The agent we want to run
-    app_name=APP_NAME,  # Associates runs with our app
-    session_service=session_service,  # Uses our session manager
-)
+# Initialize the agent runner
+runner = setup_agent_runner()
 print(f"Runner created for agent '{runner.agent.name}'.")
 
-# @title Define Agent Interaction Function
 
+async def test_conversation():
+    """一連の会話テストを実行"""
+    print("\n=== テスト会話の開始 ===")
 
-async def call_agent_async(query: str, runner, user_id, session_id):
-    """Sends a query to the agent and prints the final response."""
-    print(f"\n>>> User Query: {query}")
+    # テスト1: 挨拶
+    response1 = await call_agent_async("こんにちは", user_id=USER_ID)
+    print("\n>>> User Query: こんにちは")
+    print(f"<<< Agent Response: {response1}")
 
-    content = types.Content(role="user", parts=[types.Part(text=query)])
+    # テスト2: 足し算（文章形式）
+    response2 = await call_agent_async("10と20を足して", user_id=USER_ID)
+    print("\n>>> User Query: 10と20を足して")
+    print(f"<<< Agent Response: {response2}")
 
-    final_response_text = "Agent did not produce a final response."
+    # テスト3: 別の足し算
+    response3 = await call_agent_async("12と34を足して", user_id=USER_ID)
+    print("\n>>> User Query: 12と34を足して")
+    print(f"<<< Agent Response: {response3}")
 
-    async for event in runner.run_async(
-        user_id=user_id, session_id=session_id, new_message=content
-    ):
-        if event.is_final_response():
-            if event.content and event.content.parts:
-                final_response_text = event.content.parts[0].text
-            elif (
-                event.actions and event.actions.escalate
-            ):  # Handle potential errors/escalations
-                final_response_text = (
-                    f"Agent escalated: "
-                    f"{event.error_message or 'No specific message.'}"
-                )
-            break  # Stop processing events once the final response is found
+    # テスト4: 数字形式
+    response4 = await call_agent_async("45 55", user_id=USER_ID)
+    print("\n>>> User Query: 45 55")
+    print(f"<<< Agent Response: {response4}")
 
-    print(f"<<< Agent Response: {final_response_text}")
-
-
-async def run_conversation():
-    await call_agent_async(
-        "こんにちは",
-        runner=runner,
-        user_id=USER_ID,
-        session_id=SESSION_ID,
-    )
-
-    await call_agent_async(
-        "10と20を足して",
-        runner=runner,
-        user_id=USER_ID,
-        session_id=SESSION_ID,
-    )  # Expecting the tool's error message
-
-    await call_agent_async(
-        "12と34を足して",
-        runner=runner,
-        user_id=USER_ID,
-        session_id=SESSION_ID,
-    )
+    print("\n=== テスト会話の終了 ===")
 
 
 if __name__ == "__main__":
     # Run the event loop
-    asyncio.run(run_conversation())
+    asyncio.run(test_conversation())
