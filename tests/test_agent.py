@@ -5,7 +5,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types  # For creating message Content/Parts
 
 # config.pyをインポートして環境変数にアクセス
-from config import GOOGLE_API_KEY
+from config import GOOGLE_API_KEY  # noqa: F401
 from src.agents.calc_agent import calculator_agent
 
 session_service = InMemorySessionService()

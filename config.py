@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 # 環境変数を1回だけ読み込む

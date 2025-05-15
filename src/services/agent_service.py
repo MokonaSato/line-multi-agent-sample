@@ -2,7 +2,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from config import GOOGLE_API_KEY
+from config import GOOGLE_API_KEY  # noqa: F401
 from src.agents.calc_agent import calculator_agent
 
 # グローバル変数

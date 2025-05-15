@@ -1,9 +1,14 @@
-from fastapi import FastAPI, HTTPException, Request
+import traceback
+
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 from src.services.agent_service import call_agent_async
+from src.utils.logger import setup_logger
+
+logger = setup_logger("line_handlers")
 
 
 def setup_line_handlers(
@@ -11,14 +16,29 @@ def setup_line_handlers(
 ):
     """LINEメッセージハンドラーを設定"""
 
+    async def process_line_message(text: str, user_id: str, reply_token: str):
+        """バックグラウンドで実行される非同期処理"""
+        try:
+            response = await call_agent_async(query=text, user_id=user_id)
+            line_bot_api.reply_message(
+                reply_token, TextSendMessage(text=response)
+            )
+        except Exception as e:
+            error_details = traceback.format_exc()
+            logger.error(f"エラー詳細: {error_details}")
+            error_message = f"エラーが発生しました: {str(e)}"
+            line_bot_api.reply_message(
+                reply_token, TextSendMessage(text=error_message)
+            )
+
     @app.post("/callback")
-    async def callback(request: Request):
+    async def callback(request: Request, background_tasks: BackgroundTasks):
         signature = request.headers.get("X-Line-Signature", "")
         body = await request.body()
-        body = body.decode("utf-8")
+        body_text = body.decode("utf-8")
 
         try:
-            handler.handle(body, signature)
+            handler.handle(body_text, signature)
         except InvalidSignatureError:
             raise HTTPException(status_code=400, detail="Invalid signature")
 
@@ -26,30 +46,14 @@ def setup_line_handlers(
 
     @handler.add(MessageEvent, message=TextMessage)
     def handle_message(event):
-        text = event.message.text
-
-        try:
-            # Google ADKを使って応答を生成
-            # 注意: call_agent_asyncはasync関数なのでawaitが必要
-            import asyncio
-
-            response = asyncio.run(
-                call_agent_async(
-                    query=text,
-                    user_id=event.source.user_id,
-                )
-            )
-
-            # responseは文字列なのでそのまま使用
-            reply_message = response
-
-        except Exception as e:
-            import traceback
-
-            error_details = traceback.format_exc()
-            print(f"エラー詳細: {error_details}")
-            reply_message = f"エラーが発生しました: {str(e)}"
-
-        line_bot_api.reply_message(
-            event.reply_token, TextSendMessage(text=reply_message)
+        """LINEメッセージイベントハンドラ"""
+        # 処理をバックグラウンドタスクとして実行
+        app.state.background_tasks.add_task(
+            process_line_message,
+            text=event.message.text,
+            user_id=event.source.user_id,
+            reply_token=event.reply_token,
         )
+
+        # 即時応答（空のACK）してタイムアウトを防ぐ
+        # 実際の応答はバックグラウンドタスクから送信される
