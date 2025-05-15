@@ -2,9 +2,8 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from src.agents.calc_agent import calculator_agent
 from config import GOOGLE_API_KEY
-
+from src.agents.calc_agent import calculator_agent
 
 # グローバル変数
 session_service = None
@@ -58,7 +57,9 @@ async def call_agent_async(query: str, user_id: str):
             if event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
             elif event.actions and event.actions.escalate:
-                final_response_text = f"エラーが発生しました: {event.error_message or '詳細不明'}"
+                final_response_text = (
+                    f"エラーが発生しました: {event.error_message or '詳細不明'}"
+                )
             break
 
     return final_response_text

@@ -30,20 +30,24 @@ def setup_line_handlers(
 
         try:
             # Google ADKを使って応答を生成
-            response = call_agent_async(
-                query=text,
-                user_id=event.source.user_id,
+            # 注意: call_agent_asyncはasync関数なのでawaitが必要
+            import asyncio
+
+            response = asyncio.run(
+                call_agent_async(
+                    query=text,
+                    user_id=event.source.user_id,
+                )
             )
 
-            # エージェントからの応答をチェック
-            if hasattr(response, "text"):
-                reply_message = response.text
-            else:
-                reply_message = (
-                    "2つの数字をスペース区切りで送信してください。例: 10 20"
-                )
+            # responseは文字列なのでそのまま使用
+            reply_message = response
 
         except Exception as e:
+            import traceback
+
+            error_details = traceback.format_exc()
+            print(f"エラー詳細: {error_details}")
             reply_message = f"エラーが発生しました: {str(e)}"
 
         line_bot_api.reply_message(
