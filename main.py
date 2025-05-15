@@ -9,6 +9,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
+from config import GOOGLE_API_KEY
 from src.agents.calc_agent import calculator_agent
 
 app = FastAPI()
