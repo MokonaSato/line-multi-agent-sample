@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # アプリケーションのコードをコピー
 COPY . .
 
-# ポート8000を公開
+# ポート8080を公開
 EXPOSE 8080
 
 # アプリケーションの実行
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
