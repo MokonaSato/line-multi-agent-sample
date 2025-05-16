@@ -17,14 +17,15 @@ user_conversations = {}
 def setup_line_handlers(
     app: FastAPI, line_bot_api: LineBotApi, handler: WebhookHandler
 ):
-    @app.route("/callback", methods=["POST"])
-    def callback(request: Request):
+    @app.post("/callback")  # メソッドをデコレータで指定
+    async def callback(request: Request):
         # LINE Messaging APIからのWebhook検証
-        signature = request.headers["X-Line-Signature"]
-        body = request.get_data(as_text=True)
+        signature = request.headers.get("X-Line-Signature", "")
+        body = await request.body()  # FastAPIではasync/awaitでbodyを取得
+        body_text = body.decode("utf-8")  # バイトをテキストに変換
 
         try:
-            handler.handle(body, signature)
+            handler.handle(body_text, signature)
         except InvalidSignatureError:
             raise HTTPException(status_code=400, detail="Invalid signature")
 
