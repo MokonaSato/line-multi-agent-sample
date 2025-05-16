@@ -10,19 +10,16 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("line_handlers")
 
-# ユーザーごとの会話管理用ディクショナリ
-user_conversations = {}
-
 
 def setup_line_handlers(
     app: FastAPI, line_bot_api: LineBotApi, handler: WebhookHandler
 ):
-    @app.post("/callback")  # メソッドをデコレータで指定
+    @app.post("/callback")
     async def callback(request: Request):
         # LINE Messaging APIからのWebhook検証
         signature = request.headers.get("X-Line-Signature", "")
-        body = await request.body()  # FastAPIではasync/awaitでbodyを取得
-        body_text = body.decode("utf-8")  # バイトをテキストに変換
+        body = await request.body()
+        body_text = body.decode("utf-8")
 
         try:
             handler.handle(body_text, signature)
@@ -40,28 +37,14 @@ def setup_line_handlers(
         def get_agent_response(user_id, text):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-
-            # ユーザーごとに会話履歴を管理
-            if user_id not in user_conversations:
-                user_conversations[user_id] = []
-
-            # ユーザーのメッセージを会話履歴に追加
-            user_conversations[user_id].append(
-                {"role": "user", "content": text}
-            )
-
-            # エージェントからの応答を取得（会話履歴を含めて）
-            response = loop.run_until_complete(
-                call_agent_async(query=text, user_id=user_id)
-            )
-
-            # エージェントの応答を会話履歴に追加
-            user_conversations[user_id].append(
-                {"role": "assistant", "content": response.message.content}
-            )
-
-            loop.close()
-            return response.message.content
+            try:
+                # 直接文字列の結果を取得
+                response_text = loop.run_until_complete(
+                    call_agent_async(query=text, user_id=user_id)
+                )
+                return response_text
+            finally:
+                loop.close()
 
         try:
             # エージェントの応答を取得
@@ -73,7 +56,7 @@ def setup_line_handlers(
             )
         except Exception as e:
             # エラー処理
-            print(f"エラーが発生しました: {str(e)}")
+            logger.error(f"エラーが発生しました: {str(e)}")
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(
