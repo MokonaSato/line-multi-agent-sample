@@ -5,7 +5,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
-from src.services.agent_service import calculator_agent
+from src.services.agent_service import call_agent_async
 from src.utils.logger import setup_logger
 
 logger = setup_logger("line_handlers")
@@ -52,9 +52,7 @@ def setup_line_handlers(
 
             # エージェントからの応答を取得（会話履歴を含めて）
             response = loop.run_until_complete(
-                calculator_agent.generate_response(
-                    messages=user_conversations[user_id]
-                )
+                call_agent_async(query=text, user_id=user_id)
             )
 
             # エージェントの応答を会話履歴に追加
