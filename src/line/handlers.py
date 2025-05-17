@@ -9,7 +9,7 @@ logger = setup_logger("line_handlers")
 
 
 def setup_line_handlers(
-    app: FastAPI, line_bot_api: LineBotApi, parser: WebhookHandler
+    app: FastAPI, line_bot_api: LineBotApi, handler: WebhookHandler
 ):
     async def handle_events(events):
         for ev in events:
@@ -27,7 +27,7 @@ def setup_line_handlers(
         request: Request, background_tasks: BackgroundTasks
     ):  # 🌟background_tasksを追加
         # リクエストをパースしてイベントを取得（署名の検証あり）
-        events = parser.parse(
+        events = handler.parse(
             (await request.body()).decode("utf-8"),
             request.headers.get("X-Line-Signature", ""),
         )

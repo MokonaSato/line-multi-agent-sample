@@ -1,7 +1,7 @@
 import os
 
 from aiolinebot import AioLineBotApi
-from linebot import WebhookParser
+from linebot import WebhookHandler
 
 
 def setup_line_client():
@@ -16,6 +16,6 @@ def setup_line_client():
         )
 
     line_bot_api = AioLineBotApi(line_channel_access_token)
-    parser = WebhookParser(line_channel_secret)
+    parser = WebhookHandler(line_channel_secret)
 
     return line_bot_api, parser
