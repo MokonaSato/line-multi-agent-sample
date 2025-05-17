@@ -1,6 +1,7 @@
 import os
 
-from linebot import LineBotApi, WebhookHandler
+from aiolinebot import AioLineBotApi
+from linebot import WebhookParser
 
 
 def setup_line_client():
@@ -14,7 +15,7 @@ def setup_line_client():
             "in environment variables"
         )
 
-    line_bot_api = LineBotApi(line_channel_access_token)
-    handler = WebhookHandler(line_channel_secret)
+    line_bot_api = AioLineBotApi(line_channel_access_token)
+    parser = WebhookParser(line_channel_secret)
 
-    return line_bot_api, handler
+    return line_bot_api, parser
