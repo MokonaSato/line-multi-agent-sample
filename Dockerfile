@@ -8,7 +8,7 @@ COPY uv.lock ./
 
 # 依存関係のインストール
 RUN pip install --no-cache-dir --upgrade pip && \
-  pip install --no-cache-dir -e .
+  pip install --no-cache-dir -r requirements.txt
 
 # アプリケーションのコードをコピー
 COPY . .
