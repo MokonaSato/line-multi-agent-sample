@@ -54,33 +54,7 @@ if not channel_access_token or not channel_secret:
     )
 
 configuration = Configuration(access_token=channel_access_token)
-# handler = WebhookHandler(channel_secret)
 parser = WebhookParser(channel_secret)
-
-
-# @handler.add(MessageEvent, message=TextMessageContent)
-# def handle_message(event):
-#     response = event.message.text
-#     with ApiClient(configuration) as api_client:
-#         line_bot_api = MessagingApi(api_client)
-#         line_bot_api.reply_message_with_http_info(
-#             ReplyMessageRequest(
-#                 reply_token=event.reply_token,
-#                 messages=[TextMessage(text=response)],
-#             )
-#         )
-
-
-# def process_line_events(body_text, signature):
-#     """LINEイベントを処理する関数"""
-#     try:
-#         logger.info("Processing LINE events in background thread")
-#         handler.handle(body_text, signature)
-#         logger.info("LINE events processed successfully")
-#     except InvalidSignatureError:
-#         logger.error("Invalid signature error")
-#     except Exception as e:
-#         logger.error(f"Error while processing LINE events: {e}")
 
 
 def process_events(body: str, signature: str):
@@ -113,6 +87,7 @@ def process_events(body: str, signature: str):
                             user_id=ev.source.user_id,
                         )
                     )  # ★変更点
+                    reply_text = reply_text.replace("\n", "")
                     logger.info(f"Replying with: {reply_text}")
                     # 2) LINE に返信（同期 HTTP）
                     line_api.reply_message(
