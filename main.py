@@ -1,10 +1,21 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import (
+    ApiClient,
+    Configuration,
+    MessagingApi,
+    ReplyMessageRequest,
+    TextMessage,
+)
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-from src.line.client import setup_line_client
-from src.line.handlers import setup_line_handlers
-from src.services.agent_service import setup_agent_runner
+from src.utils.logger import setup_logger
+
+# ロガーのセットアップ
+logger = setup_logger("main")
 
 app = FastAPI()
 
@@ -17,10 +28,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 各モジュールの初期化
-line_bot_api, handler = setup_line_client()
-setup_line_handlers(app, line_bot_api, handler)
-setup_agent_runner()
+# LINE API設定
+configuration = Configuration(access_token="YOUR_CHANNEL_ACCESS_TOKEN")
+handler = WebhookHandler("YOUR_CHANNEL_SECRET")
+
+
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message_with_http_info(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=event.message.text)],
+            )
+        )
+
+
+@app.post("/callback")
+async def callback(request: Request, background_tasks: BackgroundTasks):
+    # X-Line-Signatureヘッダー値を取得
+    signature = request.headers.get("X-Line-Signature", "")
+
+    # リクエストボディをテキストとして取得
+    body = await request.body()
+    body_text = body.decode("utf-8")
+    logger.info(f"Request body: {body_text}")
+
+    # Webhookボディを処理
+    try:
+        background_tasks.add_task(handler.handle, body_text, signature)
+    except InvalidSignatureError:
+        logger.error(
+            "Invalid signature. Please check your channel access token/channel secret."
+        )
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    return {"status": "OK"}
 
 
 # ヘルスチェック用
