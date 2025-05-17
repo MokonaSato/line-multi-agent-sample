@@ -52,7 +52,10 @@ async def call_agent_async(query: str, user_id: str):
         )
         if not session:
             logger.info(
-                f"Creating new session for user {user_id} with session ID {session_id}"
+                (
+                    f"Creating new session for user {user_id} "
+                    f"with session ID {session_id}"
+                )
             )
             session_service.create_session(
                 app_name=APP_NAME, user_id=user_id, session_id=session_id
@@ -70,7 +73,10 @@ async def call_agent_async(query: str, user_id: str):
             not in session_service.sessions.get(APP_NAME, {}).get(user_id, {})
         ):
             logger.info(
-                f"Creating new session for user {user_id} with session ID {session_id}"
+                (
+                    f"Creating new session for user {user_id} "
+                    f"with session ID {session_id}"
+                )
             )
             session_service.create_session(
                 app_name=APP_NAME, user_id=user_id, session_id=session_id
