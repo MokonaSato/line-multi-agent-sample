@@ -68,20 +68,20 @@ def handle_message(event):
 
 
 @app.post("/callback")
-def callback(request: Request):
+async def callback(request: Request):
     # X-Line-Signatureヘッダー値を取得
     signature = request.headers.get("X-Line-Signature", "")
 
     # リクエストボディをテキストとして取得
-    body = request.body()
+    body = await request.body()  # awaitを追加
     body_text = body.decode("utf-8")
     logger.info(f"Request body: {body_text}")
 
     # Webhookボディを処理
     try:
-        handler.handle(body, signature)
+        handler.handle(body_text, signature)  # body_textを渡す
     except InvalidSignatureError:
-        HTTPException(400)
+        raise HTTPException(400)  # raiseを追加
 
     return "OK"
 
