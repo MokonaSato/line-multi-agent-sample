@@ -1,3 +1,4 @@
+import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 
@@ -5,8 +6,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from linebot.v3 import WebhookHandler
-from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3 import WebhookParser
 from linebot.v3.messaging import (
     ApiClient,
     Configuration,
@@ -54,34 +54,72 @@ if not channel_access_token or not channel_secret:
     )
 
 configuration = Configuration(access_token=channel_access_token)
-handler = WebhookHandler(channel_secret)
+# handler = WebhookHandler(channel_secret)
+parser = WebhookParser(channel_secret)
 
 
-@handler.add(MessageEvent, message=TextMessageContent)
-async def handle_message(event):
-    logger.info(f"Received message: {event.message.text}")
-    response = await call_agent_async(event.message.text, user_id="test_user")
-    logger.info(f"Agent response: {response}")
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=response)],
-            )
-        )
+# @handler.add(MessageEvent, message=TextMessageContent)
+# def handle_message(event):
+#     response = event.message.text
+#     with ApiClient(configuration) as api_client:
+#         line_bot_api = MessagingApi(api_client)
+#         line_bot_api.reply_message_with_http_info(
+#             ReplyMessageRequest(
+#                 reply_token=event.reply_token,
+#                 messages=[TextMessage(text=response)],
+#             )
+#         )
 
 
-def process_line_events(body_text, signature):
-    """LINEイベントを処理する関数"""
+# def process_line_events(body_text, signature):
+#     """LINEイベントを処理する関数"""
+#     try:
+#         logger.info("Processing LINE events in background thread")
+#         handler.handle(body_text, signature)
+#         logger.info("LINE events processed successfully")
+#     except InvalidSignatureError:
+#         logger.error("Invalid signature error")
+#     except Exception as e:
+#         logger.error(f"Error while processing LINE events: {e}")
+
+
+def process_events(body: str, signature: str):
+    """LINE から届いたイベントをまとめて処理（スレッド内で実行）"""
+    logger.info("Processing LINE events in background thread")
     try:
-        logger.info("Processing LINE events in background thread")
-        handler.handle(body_text, signature)
-        logger.info("LINE events processed successfully")
-    except InvalidSignatureError:
-        logger.error("Invalid signature error")
+        events = parser.parse(
+            body, signature
+        )  # 署名検証＆パース（★公式そのまま）
     except Exception as e:
-        logger.error(f"Error while processing LINE events: {e}")
+        logger.exception(f"Failed to parse events: {e}")
+        return
+
+    # Blocking I/O（Messaging API 呼び出し）用クライアント
+    with ApiClient(configuration) as api_client:
+        logger.info("Creating LINE API client")
+        line_api = MessagingApi(api_client)
+
+        for ev in events:
+            # テキストメッセージのみ対象
+            if isinstance(ev, MessageEvent) and isinstance(
+                ev.message, TextMessageContent
+            ):
+                try:
+                    logger.info(f"Received message: {ev.message.text}")
+                    # 1) AI エージェント呼び出し（async → sync）
+                    reply_text = asyncio.run(
+                        call_agent_async(ev.message.text)
+                    )  # ★変更点
+                    logger.info(f"Replying with: {reply_text}")
+                    # 2) LINE に返信（同期 HTTP）
+                    line_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=ev.reply_token,
+                            messages=[TextMessage(text=reply_text)],
+                        )
+                    )
+                except Exception as e:
+                    logger.exception(f"Error while handling event: {e}")
 
 
 @app.post("/callback")
@@ -95,7 +133,7 @@ async def callback(request: Request):
     logger.info(f"Request body: {body_text}")
 
     # 非同期でWebhookボディを処理
-    executor.submit(process_line_events, body_text, signature)
+    executor.submit(process_events, body_text, signature)
 
     return "OK"
 
