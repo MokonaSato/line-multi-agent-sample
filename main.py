@@ -108,7 +108,10 @@ def process_events(body: str, signature: str):
                     logger.info(f"Received message: {ev.message.text}")
                     # 1) AI エージェント呼び出し（async → sync）
                     reply_text = asyncio.run(
-                        call_agent_async(ev.message.text)
+                        call_agent_async(
+                            ev.message.text,
+                            user_id=ev.source.user_id,
+                        )
                     )  # ★変更点
                     logger.info(f"Replying with: {reply_text}")
                     # 2) LINE に返信（同期 HTTP）
