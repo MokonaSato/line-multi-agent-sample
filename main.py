@@ -23,6 +23,10 @@ logger = setup_logger("main")
 
 app = FastAPI()
 
+# スレッドプールの作成
+executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="LineEvent")
+
+
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
@@ -52,26 +56,6 @@ configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 
 
-# executor = ThreadPoolExecutor(thread_name_prefix="LineEvent")
-
-
-# def process_events(data, signature):
-#     events = line_parser.parse(data, signature)
-#     for ev in events:
-#         line_api.reply_message(
-#             ev.reply_token,
-#             TextMessage(text=f"You said: {ev.message.text}"),
-#         )
-
-# @app.handler("/callback", methods=["POST"])
-# def handle_webhook():
-#     executor.submit(
-#         process_events,
-#         request.body.decode("utf-8"),
-#         request.headers.get("X-Line-Signature", ""),
-#     )
-
-
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     with ApiClient(configuration) as api_client:
@@ -84,21 +68,30 @@ def handle_message(event):
         )
 
 
+def process_line_events(body_text, signature):
+    """LINEイベントを処理する関数"""
+    try:
+        logger.info("Processing LINE events in background thread")
+        handler.handle(body_text, signature)
+        logger.info("LINE events processed successfully")
+    except InvalidSignatureError:
+        logger.error("Invalid signature error")
+    except Exception as e:
+        logger.error(f"Error while processing LINE events: {e}")
+
+
 @app.post("/callback")
 async def callback(request: Request):
     # X-Line-Signatureヘッダー値を取得
     signature = request.headers.get("X-Line-Signature", "")
 
     # リクエストボディをテキストとして取得
-    body = await request.body()  # awaitを追加
+    body = await request.body()
     body_text = body.decode("utf-8")
     logger.info(f"Request body: {body_text}")
 
-    # Webhookボディを処理
-    try:
-        handler.handle(body_text, signature)  # body_textを渡す
-    except InvalidSignatureError:
-        raise HTTPException(400)  # raiseを追加
+    # 非同期でWebhookボディを処理
+    executor.submit(process_line_events, body_text, signature)
 
     return "OK"
 
