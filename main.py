@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +35,26 @@ configuration = Configuration(access_token="YOUR_CHANNEL_ACCESS_TOKEN")
 handler = WebhookHandler("YOUR_CHANNEL_SECRET")
 
 
+# executor = ThreadPoolExecutor(thread_name_prefix="LineEvent")
+
+
+# def process_events(data, signature):
+#     events = line_parser.parse(data, signature)
+#     for ev in events:
+#         line_api.reply_message(
+#             ev.reply_token,
+#             TextMessage(text=f"You said: {ev.message.text}"),
+#         )
+
+# @app.handler("/callback", methods=["POST"])
+# def handle_webhook():
+#     executor.submit(
+#         process_events,
+#         request.body.decode("utf-8"),
+#         request.headers.get("X-Line-Signature", ""),
+#     )
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     with ApiClient(configuration) as api_client:
@@ -46,25 +68,20 @@ def handle_message(event):
 
 
 @app.post("/callback")
-async def callback(request: Request, background_tasks: BackgroundTasks):
-    # X-Line-Signatureヘッダー値を取得
-    signature = request.headers.get("X-Line-Signature", "")
+def callback(request: Request):
+    # get X-Line-Signature header value
+    signature = request.headers["X-Line-Signature"]
 
-    # リクエストボディをテキストとして取得
-    body = await request.body()
-    body_text = body.decode("utf-8")
-    logger.info(f"Request body: {body_text}")
+    # get request body as text
+    body = request.get_data(as_text=True)
 
-    # Webhookボディを処理
+    # handle webhook body
     try:
-        background_tasks.add_task(handler.handle, body_text, signature)
+        handler.handle(body, signature)
     except InvalidSignatureError:
-        logger.error(
-            "Invalid signature. Please check your channel access token/channel secret."
-        )
-        raise HTTPException(status_code=400, detail="Invalid signature")
+        HTTPException(status_code=400, detail="Invalid signature")
 
-    return {"status": "OK"}
+    return "OK"
 
 
 # ヘルスチェック用
