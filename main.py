@@ -16,6 +16,7 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
+from src.services.agent_service import call_agent_async
 from src.utils.logger import setup_logger
 
 # ロガーのセットアップ
@@ -56,16 +57,53 @@ configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 
 
+async def process_message(event):
+    """メッセージを処理し、エージェントからの応答を返す"""
+    try:
+        user_id = event.source.user_id
+        query = event.message.text
+        logger.info(f"ユーザー {user_id} からのメッセージ: {query}")
+
+        # エージェントを呼び出して応答を取得
+        response = await call_agent_async(query=query, user_id=user_id)
+        logger.info(f"エージェントからの応答: {response}")
+
+        # LINEに応答を返信
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=response)],
+                )
+            )
+    except Exception as e:
+        logger.error(f"メッセージ処理中にエラーが発生しました: {e}")
+        # エラー時のフォールバック応答
+        try:
+            with ApiClient(configuration) as api_client:
+                line_bot_api = MessagingApi(api_client)
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[
+                            TextMessage(
+                                text="申し訳ありません、エラーが発生しました。"
+                            )
+                        ],
+                    )
+                )
+        except Exception as reply_error:
+            logger.error(f"エラー応答の送信に失敗しました: {reply_error}")
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=event.message.text)],
-            )
-        )
+    try:
+        # 非同期処理を実行するためのヘルパー関数
+        executor.submit(process_message, event)
+    except Exception as e:
+        logger.error(f"メッセージ処理でエラーが発生しました: {e}")
 
 
 def process_line_events(body_text, signature):
