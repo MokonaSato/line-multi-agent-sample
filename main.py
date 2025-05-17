@@ -1,6 +1,8 @@
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from linebot.v3 import WebhookHandler
@@ -30,9 +32,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# .envファイルから環境変数を読み込み
+load_dotenv()
+
 # LINE API設定
-configuration = Configuration(access_token="YOUR_CHANNEL_ACCESS_TOKEN")
-handler = WebhookHandler("YOUR_CHANNEL_SECRET")
+channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+channel_secret = os.getenv("LINE_CHANNEL_SECRET")
+
+if not channel_access_token or not channel_secret:
+    raise ValueError(
+        (
+            "LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET "
+            "must be set in environment variables"
+        )
+    )
+
+configuration = Configuration(access_token=channel_access_token)
+handler = WebhookHandler(channel_secret)
 
 
 # executor = ThreadPoolExecutor(thread_name_prefix="LineEvent")
