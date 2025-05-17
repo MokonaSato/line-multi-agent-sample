@@ -45,7 +45,19 @@ async def call_agent_async(query: str, user_id: str):
     session_id = f"session_{user_id}"
 
     # 重要: セッションが存在しない場合は作成する
-    if not session_service.get_session(APP_NAME, user_id, session_id):
+    # get_session()に引数を渡さないようにする
+    sessions = session_service.get_session()
+
+    # セッションの存在確認 - 実装に応じて調整が必要かも
+    session_exists = False
+    if (
+        APP_NAME in sessions
+        and user_id in sessions.get(APP_NAME, {})
+        and session_id in sessions.get(APP_NAME, {}).get(user_id, {})
+    ):
+        session_exists = True
+
+    if not session_exists:
         logger.info(
             (
                 f"Creating new session for user {user_id} "
