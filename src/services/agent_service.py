@@ -12,8 +12,6 @@ from src.utils.logger import setup_logger
 session_service = None
 runner = None
 APP_NAME = "calculator_app"
-USER_ID = "user_1"
-SESSION_ID = "session_1"
 
 # ロガーの設定
 logger = setup_logger("agent_service")
@@ -46,6 +44,18 @@ async def call_agent_async(query: str, user_id: str):
     # セッションIDをユーザーIDから生成（簡易的な実装）
     session_id = f"session_{user_id}"
 
+    # 重要: セッションが存在しない場合は作成する
+    if not session_service.get_session(APP_NAME, user_id, session_id):
+        logger.info(
+            (
+                f"Creating new session for user {user_id} "
+                f"with session ID {session_id}"
+            )
+        )
+        session_service.create_session(
+            app_name=APP_NAME, user_id=user_id, session_id=session_id
+        )
+
     # ユーザーのメッセージをADK形式で準備
     content = types.Content(role="user", parts=[types.Part(text=query)])
 
@@ -57,7 +67,6 @@ async def call_agent_async(query: str, user_id: str):
     async for event in runner.run_async(
         user_id=user_id, session_id=session_id, new_message=content
     ):
-
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
@@ -68,75 +77,3 @@ async def call_agent_async(query: str, user_id: str):
                 )
             break
     return final_response_text
-
-    # try:
-    #     # メッセージをADK形式に変換
-    #     content = types.Content(role="user", parts=[types.Part(text=query)])
-    #     final_response_text = "エージェントからの応答がありませんでした。"
-
-    # 簡易的な自然言語解析：入力から数値を抽出
-    # extracted_numbers = extract_numbers_from_text(query)
-
-    # 数値が2つ以上あれば、直接計算処理を実行
-    #     if len(extracted_numbers) >= 2:
-    #         try:
-    #             num1, num2 = extracted_numbers[:2]  # 最初の2つの数値を使用
-    #             result = add_numbers(num1, num2)
-    #             if result["status"] == "success":
-    #                 return f"{result['expression']}です。"
-    #         except Exception as calc_error:
-    #             logger.error(f"数値計算でエラー: {str(calc_error)}")
-    #             # 計算エラーの場合はGoogle ADKでの処理に進む
-
-    #     # セッション管理の問題を回避するため、内部変数に直接アクセス
-    #     try:
-    #         session_service._sessions = {}  # セッションをクリア
-    #         session_service._sessions[(APP_NAME, user_id, session_id)] = []
-    #         session_service._sessions = {
-    #             (APP_NAME, user_id, session_id): []
-    #         }  # より直接的なアプローチ
-    #         logger.debug(f"セッション作成: {(APP_NAME, user_id, session_id)}")
-    #     except Exception as e:
-    #         logger.warning(f"セッション作成エラー: {str(e)}")
-
-    #     # Google ADK Runnerを使用した実行を試みる
-    #     try:
-    #         async for event in runner.run_async(
-    #             user_id=user_id, session_id=session_id, new_message=content
-    #         ):
-    #             if event.is_final_response():
-    #                 if event.content and event.content.parts:
-    #                     final_response_text = event.content.parts[0].text
-    #                     return final_response_text
-
-    #         # イベントループが完了したがfinal_responseがない場合
-    #         return final_response_text
-
-    #     except Exception as runner_error:
-    #         logger.error(f"Runnerエラー: {str(runner_error)}")
-    #         # Runnerがエラーの場合、フォールバックに進む
-
-    #     # ここまで来た場合は、すべての方法が失敗しているので、
-    #     # 最終手段として基本的な計算機能を提供
-    #     try:
-    #         # 数字が見つからない場合や、既に処理済みの場合は説明を返す
-    #         if not extracted_numbers or len(extracted_numbers) < 2:
-    #             final_response_text = (
-    #                 "2つの数字をスペース区切りで送信してください。例: 10 20"
-    #             )
-    #         else:
-    #             # 2つの数字が見つかった場合
-    #             num1, num2 = extracted_numbers[:2]
-    #             final_response_text = f"{num1} + {num2} = {num1 + num2}です。"
-    #     except Exception as fallback_error:
-    #         logger.error(f"最終フォールバックエラー: {str(fallback_error)}")
-    #         final_response_text = "計算処理中にエラーが発生しました。正しい形式で数字を入力してください。"
-
-    #     return final_response_text
-
-    # except Exception as e:
-    #     import traceback
-
-    #     error_details = traceback.format_exc()
-    #     logger.error(f"処理エラー: {str(e)}\n{error_details}")
-    #     return f"エラーが発生しました: {str(e)}"
