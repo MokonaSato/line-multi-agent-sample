@@ -1,18 +1,21 @@
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient,
+    Configuration,
     MessagingApi,
     ReplyMessageRequest,
     TextMessage,
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-from src.line.client import setup_line_client
 from src.utils.logger import setup_logger
 
 # ロガーのセットアップ
@@ -33,7 +36,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-configuration, handler = setup_line_client()
+
+# .envファイルから環境変数を読み込み
+load_dotenv()
+
+# LINE API設定
+channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+channel_secret = os.getenv("LINE_CHANNEL_SECRET")
+
+if not channel_access_token or not channel_secret:
+    raise ValueError(
+        (
+            "LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET "
+            "must be set in environment variables"
+        )
+    )
+
+configuration = Configuration(access_token=channel_access_token)
+handler = WebhookHandler(channel_secret)
 
 
 @handler.add(MessageEvent, message=TextMessageContent)

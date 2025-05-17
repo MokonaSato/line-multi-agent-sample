@@ -36,28 +36,6 @@ def setup_agent_runner():
     return runner
 
 
-# def extract_numbers_from_text(text):
-#     """テキストから数値を抽出する関数
-#     複数の形式に対応:
-#     - 「10と20」のような日本語表現
-#     - 「10 20」のようなスペース区切り
-#     - 「10,20」のようなカンマ区切り
-#     """
-#     # 空白またはカンマで区切られた数字を抽出
-#     space_numbers = [int(s) for s in text.split() if s.isdigit()]
-
-#     # 「数字」と「数字」の形式を検出する正規表現
-#     ja_pattern = r"(\d+)\s*と\s*(\d+)"
-#     ja_matches = re.findall(ja_pattern, text)
-
-#     # 結果をマージ
-#     numbers = space_numbers
-#     for match in ja_matches:
-#         numbers.extend([int(n) for n in match])
-
-#     return numbers
-
-
 async def call_agent_async(query: str, user_id: str):
     """エージェントにクエリを送信し、レスポンスを返す"""
     global session_service, runner, APP_NAME
