@@ -1,10 +1,10 @@
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.line.client import setup_line_client
 from src.line.handlers import setup_line_handlers
 from src.services.agent_service import setup_agent_runner
-
 
 app = FastAPI()
 
@@ -30,6 +30,4 @@ async def health_check():
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8080)
