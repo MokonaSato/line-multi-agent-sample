@@ -86,8 +86,9 @@ def process_events(body: str, signature: str):
                             ev.message.text,
                             user_id=ev.source.user_id,
                         )
-                    )  # ★変更点
-                    reply_text = reply_text.replace("\n", "")
+                    )
+                    # reply_textの文末の改行を除く
+                    reply_text = reply_text.rstrip("\n")
                     logger.info(f"Replying with: {reply_text}")
                     # 2) LINE に返信（同期 HTTP）
                     line_api.reply_message(

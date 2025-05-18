@@ -5,7 +5,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from config import GOOGLE_API_KEY  # noqa: F401
-from src.agents.calc_agent import calculator_agent
+from src.agents.root_agent import root_agent
 from src.utils.logger import setup_logger
 
 # グローバル変数
@@ -26,7 +26,7 @@ def setup_agent_runner():
 
     # Runnerの設定
     runner = Runner(
-        agent=calculator_agent,
+        agent=root_agent,
         app_name=APP_NAME,
         session_service=session_service,
     )

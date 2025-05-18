@@ -30,8 +30,8 @@ async def test_conversation():
     print(f"<<< Agent Response: {response3}")
 
     # テスト4: 数字形式
-    response4 = await call_agent_async("45 55", user_id=USER_ID)
-    print("\n>>> User Query: 45 55")
+    response4 = await call_agent_async("Google検索でピータンについて調べて概要を教えて", user_id=USER_ID)
+    print("\n>>> User Query: Google検索でピータンについて調べて概要を教えて")
     print(f"<<< Agent Response: {response4}")
 
     print("\n=== テスト会話の終了 ===")
