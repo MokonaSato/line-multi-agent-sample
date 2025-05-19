@@ -1,17 +1,41 @@
 import asyncio
+import atexit
 
-from src.services.agent_service import call_agent_async, setup_agent_runner
+from src.services.agent_service_test import (
+    call_agent_async,
+    cleanup_resources,
+    setup_agent_runner,
+)
 
 # Define constants for test purposes
 USER_ID = "test_user_1"
 
 # Initialize the agent runner
-runner = setup_agent_runner()
-print(f"Runner created for agent '{runner.agent.name}'.")
+runner = None  # 初期化を遅延させる
+
+
+async def initialize_runner():
+    global runner
+    runner = await setup_agent_runner()
+    return runner
+
+
+# 終了時にリソースをクリーンアップするための関数を登録
+atexit.register(
+    lambda: (
+        asyncio.run(cleanup_resources())
+        if "cleanup_resources" in globals()
+        else None
+    )
+)
 
 
 async def test_conversation():
     """一連の会話テストを実行"""
+    global runner
+    if not runner:
+        runner = await initialize_runner()
+
     print("\n=== テスト会話の開始 ===")
 
     # テスト1: 挨拶
@@ -24,17 +48,32 @@ async def test_conversation():
     print("\n>>> User Query: 10と20を足して")
     print(f"<<< Agent Response: {response2}")
 
-    # テスト3: 別の足し算
-    response3 = await call_agent_async("12と34を足して", user_id=USER_ID)
-    print("\n>>> User Query: 12と34を足して")
+    # テスト3: Google検索
+    response3 = await call_agent_async(
+        "Google検索でピータンについて調べて概要を教えて", user_id=USER_ID
+    )
+    print("\n>>> User Query: Google検索でピータンについて調べて概要を教えて")
     print(f"<<< Agent Response: {response3}")
 
-    # テスト4: 数字形式
-    response4 = await call_agent_async("Google検索でピータンについて調べて概要を教えて", user_id=USER_ID)
-    print("\n>>> User Query: Google検索でピータンについて調べて概要を教えて")
-    print(f"<<< Agent Response: {response4}")
+    # テスト4: Notion取得
+    # Notionのリソース管理のためにtry-finallyを使用
+    try:
+        response4 = await call_agent_async(
+            "Notionのdatabase id: 1719a9401325808c9cd6ea99f9535f3a からレコードを3件取ってきて。",
+            user_id=USER_ID,
+        )
+        print(
+            "\n>>> User Query: Notionのdatabase id: 1719a9401325808c9cd6ea99f9535f3a からレコードを3件取ってきて。"
+        )
+        print(f"<<< Agent Response: {response4}")
+    finally:
+        # Notionエージェントのクエリ実行後にクリーンアップを試みる
+        pass
 
     print("\n=== テスト会話の終了 ===")
+
+    # テスト終了後にリソースをクリーンアップ
+    await cleanup_resources()
 
 
 if __name__ == "__main__":

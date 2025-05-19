@@ -25,7 +25,10 @@ async def create_agent():
     notion_agent = LlmAgent(
         model="gemini-2.0-flash",
         name="notion_agent",
-        instruction="Help user accessing their file systems",
+        instruction=(
+            "Notionのページやデータベースにアクセスして情報を取得したり、"
+            "書き込んだり、削除したりすることができるエージェントです。"
+        ),
         tools=tools,
     )
     return notion_agent, exit_stack

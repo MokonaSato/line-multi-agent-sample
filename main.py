@@ -16,7 +16,8 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-from src.services.agent_service import call_agent_async
+# from src.services.agent_service import call_agent_async
+from src.services.agent_service_test import call_agent_async, cleanup_resources
 from src.utils.logger import setup_logger
 
 # ロガーのセットアップ
@@ -99,6 +100,9 @@ def process_events(body: str, signature: str):
                     )
                 except Exception as e:
                     logger.exception(f"Error while handling event: {e}")
+                finally:
+                    pass
+                cleanup_resources()
 
 
 @app.post("/callback")
