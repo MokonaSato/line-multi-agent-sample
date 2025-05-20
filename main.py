@@ -82,27 +82,54 @@ def process_events(body: str, signature: str):
                 try:
                     logger.info(f"Received message: {ev.message.text}")
                     # 1) AI エージェント呼び出し（async → sync）
-                    reply_text = asyncio.run(
-                        call_agent_async(
-                            ev.message.text,
-                            user_id=ev.source.user_id,
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        reply_text = loop.run_until_complete(
+                            call_agent_async(
+                                ev.message.text,
+                                user_id=ev.source.user_id,
+                            )
                         )
-                    )
-                    # reply_textの文末の改行を除く
-                    reply_text = reply_text.rstrip("\n")
-                    logger.info(f"Replying with: {reply_text}")
-                    # 2) LINE に返信（同期 HTTP）
-                    line_api.reply_message(
-                        ReplyMessageRequest(
-                            reply_token=ev.reply_token,
-                            messages=[TextMessage(text=reply_text)],
+                        # reply_textの文末の改行を除く
+                        reply_text = reply_text.rstrip("\n")
+                        logger.info(f"Replying with: {reply_text}")
+                        # 2) LINE に返信（同期 HTTP）
+                        line_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=ev.reply_token,
+                                messages=[TextMessage(text=reply_text)],
+                            )
                         )
-                    )
+                    finally:
+                        loop.close()
                 except Exception as e:
                     logger.exception(f"Error while handling event: {e}")
-                finally:
-                    pass
-                cleanup_resources()
+                    # エラー時にもLINEに応答
+                    try:
+                        line_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=ev.reply_token,
+                                messages=[
+                                    TextMessage(
+                                        text="申し訳ありません、処理中にエラーが発生しました。"
+                                    )
+                                ],
+                            )
+                        )
+                    except Exception as reply_error:
+                        logger.exception(
+                            f"Failed to send error message: {reply_error}"
+                        )
+
+    # 処理完了後にリソースをクリーンアップ
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(cleanup_resources())
+        loop.close()
+    except Exception as cleanup_error:
+        logger.exception(f"Error during resource cleanup: {cleanup_error}")
 
 
 @app.post("/callback")
