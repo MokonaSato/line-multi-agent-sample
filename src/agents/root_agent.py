@@ -1,23 +1,52 @@
-from google.adk.agents import Agent
+# ./adk_agent_samples/mcp_agent/agent.py
+import os
+
+from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools import agent_tool
+from google.adk.tools.mcp_tool.mcp_toolset import (
+    MCPToolset,
+    StdioServerParameters,
+)
 
 from src.agents.calc_agent import calculator_agent
 from src.agents.google_search_agent import google_search_agent
-from src.agents.notion_agent import notion_agent
+from src.utils.file_utils import read_prompt_file
 
-root_agent = Agent(
-    name="RootAgent",
-    model="gemini-2.0-flash",
-    description=(
-        "メインエージェントとして機能し、ユーザーの質問や要求に応じて適切な"
-        "サブエージェントに処理を振り分けます。Google検索機能を持つ"
-        "google_search_agentと計算処理を行うcalculator_agent, "
-        "Notion操作をするnotion_agentを活用して、"
-        "幅広い情報提供と計算タスクを実行できます。"
-    ),
-    tools=[
-        agent_tool.AgentTool(agent=google_search_agent),
-        # agent_tool.AgentTool(agent=notion_agent),
-    ],
-    sub_agents=[calculator_agent, notion_agent],
+# プロンプトファイルのパスを指定
+prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "root.txt"
 )
+root_prompt = read_prompt_file(prompt_file_path)
+
+
+async def create_agent():
+    """Gets tools from MCP Server."""
+    tools, exit_stack = await MCPToolset.from_server(
+        connection_params=StdioServerParameters(
+            command="npx",
+            args=["-y", "@notionhq/notion-mcp-server"],
+            env={
+                "OPENAPI_MCP_HEADERS": (
+                    '{"Authorization": "Bearer '
+                    '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", '
+                    '"Notion-Version": "2022-06-28" }'
+                )
+            },
+        )
+    )
+
+    tools.append(agent_tool.AgentTool(agent=google_search_agent))
+
+    notion_agent = LlmAgent(
+        model="gemini-2.0-flash",
+        name="notion_agent",
+        instruction=root_prompt,
+        tools=tools,
+        sub_agents=[
+            calculator_agent,
+        ],
+    )
+    return notion_agent, exit_stack
+
+
+notion_agent = create_agent()

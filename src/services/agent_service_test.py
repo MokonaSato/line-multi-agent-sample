@@ -10,7 +10,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from src.agents.notion_agent import create_agent
+from src.agents.root_agent import create_agent
 from src.utils.logger import setup_logger
 
 # ロガーを設定
@@ -170,6 +170,9 @@ async def call_agent_async(
 
             # 非同期ジェネレーターが正常に完了したことを記録
             events_completed = True
+            logger.info(
+                f"Agent events completed successfully: {events_completed}"
+            )
 
         except Exception as e:
             logger.error(f"Error during agent execution: {e}")

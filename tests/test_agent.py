@@ -59,11 +59,17 @@ async def test_conversation():
     # Notionのリソース管理のためにtry-finallyを使用
     try:
         response4 = await call_agent_async(
-            "Notionのdatabase id: 1719a9401325808c9cd6ea99f9535f3a からレコードを3件取ってきて。",
+            (
+                "Notionのdatabase id: 1719a9401325808c9cd6ea99f9535f3a "
+                "からレコードを3件取ってきて、タイトルを教えて。"
+            ),
             user_id=USER_ID,
         )
         print(
-            "\n>>> User Query: Notionのdatabase id: 1719a9401325808c9cd6ea99f9535f3a からレコードを3件取ってきて。"
+            (
+                "\n>>> User Query: Notionのdatabase id: "
+                "1719a9401325808c9cd6ea99f9535f3a からレコードを3件取ってきて、タイトルを教えて。"
+            )
         )
         print(f"<<< Agent Response: {response4}")
     finally:
