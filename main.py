@@ -17,7 +17,11 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 # from src.services.agent_service import call_agent_async
-from src.services.agent_service_test import call_agent_async, cleanup_resources
+from src.services.agent_service_test import (
+    call_agent_async,
+    cleanup_resources,
+    init_agent,
+)
 from src.utils.logger import setup_logger
 
 # ロガーのセットアップ
@@ -27,6 +31,35 @@ app = FastAPI()
 
 # スレッドプールの作成
 executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="LineEvent")
+
+
+# アプリケーション起動時にエージェントを初期化
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Initializing agent on application startup")
+    try:
+        await init_agent()
+        logger.info("Agent initialization completed")
+    except Exception as e:
+        logger.error(f"Failed to initialize agent: {e}")
+        # 起動時のエラーは重大なので、例外を再発生させる
+        raise
+
+
+# アプリケーション終了時にリソースをクリーンアップ
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Cleaning up resources on application shutdown")
+    try:
+        # エージェントのリソースをクリーンアップ
+        await cleanup_resources()
+        logger.info("Agent resources cleanup completed")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
+    # スレッドプールもシャットダウン
+    executor.shutdown(wait=True)
+    logger.info("Thread pool executor shutdown completed")
 
 
 # CORS設定

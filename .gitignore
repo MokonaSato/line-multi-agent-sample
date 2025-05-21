@@ -50,5 +50,3 @@ node_modules/
 .coverage
 htmlcov/
 .pytest_cache/
-
-__pycache__/
