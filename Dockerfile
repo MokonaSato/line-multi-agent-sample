@@ -29,4 +29,4 @@ COPY ./start.sh ./
 RUN chmod +x ./start.sh
 
 ENV PORT=8080
-CMD ["/start.sh"]
+CMD ["./start.sh"]
