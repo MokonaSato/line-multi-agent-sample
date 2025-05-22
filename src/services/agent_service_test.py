@@ -65,12 +65,12 @@ async def call_agent_async(
     session = session_service.get_session(
         app_name=APP_NAME,
         user_id=user_id,
-        session_id=f"session_{user_id}",
+        session_id=session_id,
     )
     # セッション管理
     if not session:
         session = session_service.create_session(
-            state={}, app_name=APP_NAME, user_id=user_id
+            state={}, app_name=APP_NAME, user_id=user_id, session_id=session_id
         )
         session_id = session.id
         logger.info(f"Created new session: {session_id}")
