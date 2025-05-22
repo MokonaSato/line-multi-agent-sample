@@ -25,6 +25,7 @@ RUN npm install -g @notionhq/notion-mcp-server
 # アプリケーションのコードをコピー
 COPY . .
 
+COPY ./start.sh ./
 RUN chmod +x ./start.sh
 
 ENV PORT=8080
