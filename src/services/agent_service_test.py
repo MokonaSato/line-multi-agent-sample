@@ -81,7 +81,7 @@ async def call_agent_async(
     # メッセージをContent型に変換
     content = types.Content(role="user", parts=[types.Part(text=message)])
 
-    root_agent, exit_stack = await create_agent()
+    # root_agent, exit_stack = await create_agent()
 
     # エージェントを実行して応答を取得
     final_response = ""

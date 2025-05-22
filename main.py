@@ -30,7 +30,7 @@ logger = setup_logger("main")
 app = FastAPI()
 
 # スレッドプールの作成
-executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="LineEvent")
+executor = ThreadPoolExecutor(max_workers=15, thread_name_prefix="LineEvent")
 
 
 # アプリケーション起動時にエージェントを初期化
