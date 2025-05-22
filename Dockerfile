@@ -18,11 +18,14 @@ COPY uv.lock ./
 RUN pip install --no-cache-dir --upgrade pip && \
   pip install --no-cache-dir -r requirements.txt
 
+
+# Node deps（Notion MCP）
+RUN npm install -g @notionhq/notion-mcp-server
+
 # アプリケーションのコードをコピー
 COPY . .
 
-# ポート8080を公開
-EXPOSE 8080
+RUN chmod +x ./start.sh
 
-# アプリケーションの実行
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+ENV PORT=8080
+CMD ["/start.sh"]

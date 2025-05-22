@@ -7,7 +7,7 @@ load_dotenv()
 
 # よく使う環境変数を定数として定義
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 # 他の環境変数もここに定義できます
 
 # 環境変数が設定されているか確認

@@ -10,6 +10,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import (
     StdioServerParameters,
 )
 
+# from config import NOTION_TOKEN
 from src.agents.calc_agent import (
     add_numbers,
     divide_numbers,
@@ -41,13 +42,16 @@ async def create_agent():
     tools, exit_stack = await MCPToolset.from_server(
         connection_params=StdioServerParameters(
             command="npx",
-            args=["-y", "@notionhq/notion-mcp-server"],
+            args=[
+                "-y",
+                "@notionhq/notion-mcp-server",
+                "--mode",
+                "mcp",
+                "--stdio",
+            ],
             env={
-                "OPENAPI_MCP_HEADERS": (
-                    '{"Authorization": "Bearer '
-                    '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", '
-                    '"Notion-Version": "2022-06-28" }'
-                )
+                "NOTION_TOKEN": "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",
+                "Notion-Version": "2022-06-28",
             },
         )
     )
