@@ -13,7 +13,7 @@ from src.utils.logger import setup_logger
 session_service = InMemorySessionService()
 artifacts_service = InMemoryArtifactService()
 root_agent = None
-exist_stack = None
+exit_stack = None
 runner = None
 APP_NAME = "line_multi_agent"
 
