@@ -10,6 +10,8 @@ from google.adk.tools.mcp_tool.mcp_toolset import (
     StdioServerParameters,
 )
 
+from config import NOTION_TOKEN
+
 # from config import NOTION_TOKEN
 from src.agents.calc_agent import (
     add_numbers,
@@ -19,6 +21,10 @@ from src.agents.calc_agent import (
 )
 from src.agents.google_search_agent import google_search_agent
 from src.utils.file_utils import read_prompt_file
+from src.utils.logger import setup_logger
+
+# ロガーを設定
+logger = setup_logger("root_agent")
 
 # プロンプトファイルのパスを指定
 prompt_file_path = os.path.join(
@@ -37,28 +43,36 @@ async def create_agent():
 
     # すでに作成済みの場合はそれを返す
     if _root_agent is not None:
+        logger.info("Returning existing root agent")
         return _root_agent, _exit_stack
 
-    tools, exit_stack = await MCPToolset.from_server(
-        connection_params=StdioServerParameters(
-            command="npx",
-            args=[
-                "-y",
-                "@notionhq/notion-mcp-server",
-                "--mode",
-                "mcp",
-                "--stdio",
-            ],
-            env={
-                "NOTION_TOKEN": "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",
-                "Notion-Version": "2022-06-28",
-            },
+    logger.info("Creating new root agent with local Notion MCP Server")
+
+    try:
+        # ローカルのNotion MCP Serverに接続
+        tools, exit_stack = await MCPToolset.from_server(
+            connection_params=StdioServerParameters(
+                command="npx",
+                args=["-y", "@notionhq/notion-mcp-server"],
+                env={
+                    "OPENAPI_MCP_HEADERS": (
+                        f'{{"Authorization": "Bearer {NOTION_TOKEN}", '
+                        f'"Notion-Version": "2022-06-28" }}'
+                    )
+                },
+            )
         )
-    )
 
-    # exit_stackをグローバルなものにマージする
-    await _exit_stack.enter_async_context(exit_stack)
+        # exit_stackをグローバルなものにマージする
+        await _exit_stack.enter_async_context(exit_stack)
+        logger.info("Successfully connected to local Notion MCP Server")
 
+    except Exception as e:
+        logger.error(f"Failed to connect to Notion MCP Server: {e}")
+        # MCPサーバーへの接続に失敗した場合は空のツールリストで続行
+        tools = []
+
+    # Google検索エージェントを追加
     tools.append(agent_tool.AgentTool(agent=google_search_agent))
 
     # 毎回新しいcalculator_agentを作成
@@ -84,7 +98,6 @@ async def create_agent():
             calc_agent,
         ],
     )
+
+    logger.info("Root agent created successfully")
     return _root_agent, _exit_stack
-
-
-root_agent = create_agent()
