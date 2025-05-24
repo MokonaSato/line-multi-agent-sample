@@ -10,16 +10,6 @@ RUN apt-get update && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-# Notion MCP Serverのソースコードをコピー（事前にローカルでcloneしておく）
-COPY ./notion-mcp-server /app/notion-mcp-server
-
-# Notion MCP Serverの依存関係をインストール
-WORKDIR /app/notion-mcp-server
-RUN npm install && npm run build
-
-# メインアプリケーションのディレクトリに戻る
-WORKDIR /app
-
 # 依存関係ファイルをコピー
 COPY requirements.txt pyproject.toml ./
 COPY uv.lock ./
@@ -31,8 +21,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # アプリケーションのコードをコピー
 COPY . .
 
-COPY ./start.sh ./
-RUN chmod +x ./start.sh
+# Notion MCP Serverの依存関係をインストール
+WORKDIR /app/notion-mcp-server
+RUN npm install && npm run build
+
+# メインアプリケーションのディレクトリに戻る
+WORKDIR /app
 
 ENV PORT=8080
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
