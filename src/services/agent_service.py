@@ -1,105 +1,128 @@
-# import re
+from typing import Optional
 
+from google.adk.artifacts.in_memory_artifact_service import (
+    InMemoryArtifactService,
+)
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from config import GOOGLE_API_KEY  # noqa: F401
-from src.agents.root_agent import root_agent
+from src.agents.root_agent import create_agent
 from src.utils.logger import setup_logger
 
-# グローバル変数
-session_service = None
+session_service = InMemorySessionService()
+artifacts_service = InMemoryArtifactService()
+root_agent = None
+exit_stack = None
 runner = None
-APP_NAME = "calculator_app"
+APP_NAME = "line_multi_agent"
 
-# ロガーの設定
+# ロガーを設定
 logger = setup_logger("agent_service")
 
 
-def setup_agent_runner():
-    """Agent Runnerを初期化"""
-    global session_service, runner
+async def init_agent():
+    """エージェントを初期化する（一度だけ実行）"""
+    global root_agent, exit_stack, runner
+    if root_agent is None:
+        root_agent, exit_stack = await create_agent()
 
-    # セッションサービスの設定
-    session_service = InMemorySessionService()
+        # ランナーも初期化
+        runner = Runner(
+            app_name=APP_NAME,
+            agent=root_agent,
+            artifact_service=artifacts_service,
+            session_service=session_service,
+        )
+    return root_agent
 
-    # Runnerの設定
-    runner = Runner(
-        agent=root_agent,
+
+async def call_agent_async(
+    message: str, user_id: str, session_id: Optional[str] = None
+) -> str:
+    """
+    エージェントにメッセージを送信し、応答を返す
+
+    Args:
+        message: ユーザーからのメッセージ
+        user_id: ユーザーID
+        session_id: セッションID（未指定時は新規作成）
+
+    Returns:
+        エージェントからの応答文字列
+    """
+
+    global session_service, artifacts_service, root_agent, runner, APP_NAME
+
+    # エージェントがまだ初期化されていない場合は初期化
+    if root_agent is None:
+        await init_agent()
+
+    # セッションIDが指定されていない場合はユーザーIDから生成
+    if session_id is None:
+        session_id = f"session_{user_id}"
+
+    session = session_service.get_session(
         app_name=APP_NAME,
-        session_service=session_service,
+        user_id=user_id,
+        session_id=session_id,
     )
+    # セッション管理
+    if not session:
+        session = session_service.create_session(
+            state={}, app_name=APP_NAME, user_id=user_id, session_id=session_id
+        )
+        session_id = session.id
+        logger.info(f"Created new session: {session_id}")
+    else:
+        session_id = session.id
+        logger.info(f"Using existing session: {session_id}")
 
-    return runner
+    # メッセージをContent型に変換
+    content = types.Content(role="user", parts=[types.Part(text=message)])
 
+    # root_agent, exit_stack = await create_agent()
 
-async def call_agent_async(query: str, user_id: str):
-    """エージェントにクエリを送信し、レスポンスを返す"""
-    global session_service, runner, APP_NAME
+    # エージェントを実行して応答を取得
+    final_response = ""
 
-    if not runner or not session_service:
-        setup_agent_runner()
-
-    # セッションIDをユーザーIDから生成（簡易的な実装）
-    session_id = f"session_{user_id}"
-
-    # 重要: セッションが存在しない場合は作成する
     try:
-        # 新しいAPIに合わせて修正 - キーワード引数を使用する
-        session = session_service.get_session(
-            app_name=APP_NAME, user_id=user_id, session_id=session_id
-        )
-        if not session:
-            logger.info(
-                (
-                    f"Creating new session for user {user_id} "
-                    f"with session ID {session_id}"
-                )
-            )
-            session_service.create_session(
-                app_name=APP_NAME, user_id=user_id, session_id=session_id
-            )
-    except TypeError:
-        # 古いAPIスタイルの場合、異なる方法で呼び出す可能性がある
         logger.info(
-            f"Trying alternative API for session management for user {user_id}"
+            f"Running agent for message: '{message[:50]}...' (truncated)"
         )
-        # 辞書形式でアクセスしてみる
-        if (
-            APP_NAME not in session_service.sessions
-            or user_id not in session_service.sessions.get(APP_NAME, {})
-            or session_id
-            not in session_service.sessions.get(APP_NAME, {}).get(user_id, {})
-        ):
-            logger.info(
-                (
-                    f"Creating new session for user {user_id} "
-                    f"with session ID {session_id}"
-                )
-            )
-            session_service.create_session(
-                app_name=APP_NAME, user_id=user_id, session_id=session_id
-            )
+        events_async = runner.run_async(
+            session_id=session_id, user_id=user_id, new_message=content
+        )
 
-    # ユーザーのメッセージをADK形式で準備
-    content = types.Content(role="user", parts=[types.Part(text=query)])
+        # イベントを非同期で処理
+        async for event in events_async:
+            if (
+                event.is_final_response()
+                and event.content
+                and event.content.parts
+            ):
+                final_response = event.content.parts[0].text
+                logger.info("Received final response from agent")
+                break  # 最終応答を受け取ったらループを抜ける
 
-    final_response_text = (
-        "エージェントは最終応答を生成しませんでした。"  # デフォルト
-    )
+    except Exception as e:
+        logger.error(f"Error during agent execution: {e}")
+        final_response = f"エラーが発生しました: {str(e)}"
 
-    # イベントを反復処理して最終応答を見つけます。
-    async for event in runner.run_async(
-        user_id=user_id, session_id=session_id, new_message=content
-    ):
-        if event.is_final_response():
-            if event.content and event.content.parts:
-                final_response_text = event.content.parts[0].text
-            elif event.actions and event.actions.escalate:
-                final_response_text = (
-                    f"エージェントがエスカレートしました: "
-                    f"{event.error_message or '特定のメッセージはありません。'}"
-                )
-            break
-    return final_response_text
+    # 最終応答がない場合のフォールバック
+    if not final_response:
+        final_response = "応答を取得できませんでした。"
+
+    return final_response
+
+
+# リソースをクリーンアップする関数
+async def cleanup_resources():
+    """リソースをクリーンアップ"""
+    global exit_stack
+    if exit_stack:
+        try:
+            await exit_stack.aclose()
+            logger.info("Successfully cleaned up resources")
+        except Exception as e:
+            logger.error(f"Error during resource cleanup: {e}")

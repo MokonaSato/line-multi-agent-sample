@@ -17,7 +17,7 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 # from src.services.agent_service import call_agent_async
-from src.services.agent_service_test import (
+from src.services.agent_service import (
     call_agent_async,
     cleanup_resources,
     init_agent,

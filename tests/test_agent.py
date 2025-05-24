@@ -1,6 +1,6 @@
 import asyncio
 
-from src.services.agent_service_test import call_agent_async, cleanup_resources
+from src.services.agent_service import call_agent_async, cleanup_resources
 
 # Define constants for test purposes
 USER_ID = "test_user_1"

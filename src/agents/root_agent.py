@@ -90,7 +90,7 @@ async def create_agent():
     )
 
     _root_agent = LlmAgent(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-preview-05-20",
         name="root_agent",
         instruction=root_prompt,
         tools=tools,
