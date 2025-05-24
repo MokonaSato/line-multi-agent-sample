@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspace:cached
+    ports:
+      - "8080:8080"  # uvicornサーバー用ポート
+    command: >
+      bash -c "
+        if [ ! -d '/workspace/notion-mcp-server' ]; then
+          git clone https://github.com/makenotion/notion-mcp-server.git /workspace/notion-mcp-server
+        fi &&
+        cd /workspace/notion-mcp-server &&
+        npm install &&
+        npm run build &&
+        cd /workspace &&
+        sleep infinity
+      "
+    environment:
+      - PORT=8080
+      # 必要に応じて.envファイルから環境変数を追加
+    env_file:
+      - ../.env

@@ -35,4 +35,7 @@ WORKDIR /app
 
 ENV PORT=8080
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+RUN chmod +x /app/start.sh
+CMD ["/app/start.sh"]
+
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
