@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 # Notion MCP Serverの依存関係をインストール
+COPY ./notion-mcp-server .
+COPY ./notion-mcp-server/package.json ./notion-mcp-server/
 WORKDIR /app/notion-mcp-server
 RUN npm install && npm run build
 
