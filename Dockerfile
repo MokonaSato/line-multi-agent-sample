@@ -11,7 +11,7 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 # Notion MCP Serverのソースコードをコピー（事前にローカルでcloneしておく）
-COPY notion-mcp-server /app/notion-mcp-server
+COPY ./notion-mcp-server /app/notion-mcp-server
 
 # Notion MCP Serverの依存関係をインストール
 WORKDIR /app/notion-mcp-server
