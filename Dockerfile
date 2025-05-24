@@ -21,6 +21,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # アプリケーションのコードをコピー
 COPY . .
 
+# サブモジュールがない場合はクローン
+RUN if [ ! -d "notion-mcp-server" ]; then \
+      git clone https://github.com/makenotion/notion-mcp-server.git; \
+    fi
+
 # Notion MCP Serverの依存関係をインストール
 COPY ./notion-mcp-server .
 COPY ./notion-mcp-server/package.json ./notion-mcp-server/
