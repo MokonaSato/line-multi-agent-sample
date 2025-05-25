@@ -9,12 +9,14 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from config import NOTION_TOKEN
+
 
 class NotionAPIClient:
     """Notion API クライアント"""
 
     def __init__(self):
-        self.token = os.getenv("NOTION_TOKEN", "")
+        self.token = NOTION_TOKEN
         self.version = os.getenv("NOTION_VERSION", "2022-06-28")
         self.base_url = "https://api.notion.com/v1"
         self.headers = {
