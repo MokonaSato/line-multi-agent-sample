@@ -1,5 +1,3 @@
-import pytest
-
 from src.agents.tools.calculator_tools import (
     add_numbers,
     divide_numbers,
@@ -60,21 +58,3 @@ def test_divide_by_zero():
     result = divide_numbers(5, 0)
     assert result["status"] == "error"
     assert "0で割る" in result["error_message"]
-    result = multiply_numbers(5, 3)
-    assert result == "5 × 3 = 15"
-
-    result = multiply_numbers(0.5, 0.3)
-    assert result == "0.5 × 0.3 = 0.15"
-
-
-def test_divide():
-    result = divide_numbers(6, 3)
-    assert result == "6 ÷ 3 = 2.0"
-
-    result = divide_numbers(0.6, 0.3)
-    assert result == "0.6 ÷ 0.3 = 2.0"
-
-
-def test_divide_by_zero():
-    result = divide_numbers(5, 0)
-    assert "エラー" in result or "ゼロ" in result
