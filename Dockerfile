@@ -21,21 +21,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # アプリケーションのコードをコピー
 COPY . .
 
-# サブモジュールがない場合はクローン
-# RUN if [ ! -d "notion-mcp-server" ]; then \
-#       git clone https://github.com/makenotion/notion-mcp-server.git; \
-#     fi
-
-# Notion MCP Serverの依存関係をインストール
-# WORKDIR /app/notion-mcp-server
-# RUN npm install && npm run build
-
-# メインアプリケーションのディレクトリに戻る
-# WORKDIR /app
-
 ENV PORT=8080
-
-# RUN chmod +x /app/start.sh
-# CMD ["/app/start.sh"]
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

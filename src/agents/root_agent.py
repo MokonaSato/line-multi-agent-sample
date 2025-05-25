@@ -132,7 +132,6 @@ async def create_agent():
             notion_agent,
             content_extraction_agent,
             vision_agent,
-            content_extraction_agent,
         ],
     )
 
