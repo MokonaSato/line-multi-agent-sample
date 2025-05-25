@@ -1,11 +1,6 @@
-import os
-
-from google.adk.agents import Agent
-
-from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger
 
-logger = setup_logger("calculator_agent")
+logger = setup_logger("calculator_tool")
 
 
 # 計算機能を実装する関数
@@ -115,17 +110,9 @@ def divide_numbers(num1: int, num2: int) -> dict:
         }
 
 
-# プロンプトファイルのパスを指定
-prompt_file_path = os.path.join(
-    os.path.dirname(__file__), "prompts", "calculator.txt"
-)
-calculator_prompt = read_prompt_file(prompt_file_path)
-
-# Google ADKのエージェントを作成
-calculator_agent = Agent(
-    name="calculator_agent",
-    model="gemini-2.0-flash",
-    description="2つの数字を使って四則演算（足し算、引き算、掛け算、割り算）ができる計算エージェント",
-    instruction=calculator_prompt,
-    tools=[add_numbers, subtract_numbers, multiply_numbers, divide_numbers],
-)
+calculator_tools_list = [
+    add_numbers,
+    subtract_numbers,
+    multiply_numbers,
+    divide_numbers,
+]
