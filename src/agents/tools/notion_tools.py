@@ -166,6 +166,7 @@ def notion_create_page(
     title: str,
     content: Optional[List[Dict[str, Any]]] = None,
     parent_type: str = "page",
+    properties: Optional[Dict[str, Any]] = None,  # propertiesパラメータを追加
 ) -> Dict[str, Any]:
     """
     新しいページを作成
@@ -175,14 +176,28 @@ def notion_create_page(
         title: ページタイトル
         content: ページコンテンツ（ブロックの配列）
         parent_type: 親のタイプ ('page' または 'database')
+        properties: ページのプロパティ（titleプロパティが指定されていない場合は自動で追加）
 
     Returns:
         作成されたページの情報
     """
-    data = {
-        "parent": {f"{parent_type}_id": parent_id},
-        "properties": {"title": {"title": [{"text": {"content": title}}]}},
-    }
+    if properties is None:
+        # デフォルトのプロパティを設定
+        data = {
+            "parent": {f"{parent_type}_id": parent_id},
+            "properties": {"title": {"title": [{"text": {"content": title}}]}},
+        }
+    else:
+        # プロパティが指定されている場合はそれを使用
+        data = {
+            "parent": {f"{parent_type}_id": parent_id},
+            "properties": properties,
+        }
+        # titleプロパティがない場合は追加
+        if "title" not in properties:
+            data["properties"]["title"] = {
+                "title": [{"text": {"content": title}}]
+            }
 
     if content:
         data["children"] = content
