@@ -63,7 +63,7 @@ async def create_agent():
     # 毎回新しいcalculator_agentを作成
     calc_agent = Agent(
         name="calculator_agent",
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-preview-05-20",
         description="2つの数字を使って四則演算（足し算、引き算、掛け算、割り算）ができる計算エージェント",
         instruction=calc_prompt,
         tools=calculator_tools_list,
@@ -71,7 +71,7 @@ async def create_agent():
 
     notion_agent = Agent(
         name="notion_agent",
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-preview-05-20",
         description=(
             "NotionワークスペースのデータとやりとりするエージェントFです。"
             "ページやデータベースの検索、作成、更新、およびコンテンツの管理を行います。"
@@ -83,7 +83,7 @@ async def create_agent():
 
     content_extraction_agent = Agent(
         name="content_extraction_agent",
-        model="gemini-2.5-pro-latest",
+        model="gemini-2.5-flash-preview-05-20",
         description=(
             "Webページのコンテンツを構造化して抽出するエージェント。"
             "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
@@ -94,7 +94,7 @@ async def create_agent():
 
     vision_agent = Agent(
         name="vision_agent",
-        model="gemini-2.0-pro-vision-latest",
+        model="gemini-2.5-flash-preview-05-20",
         description="画像を分析して詳細な情報を抽出するエージェント。料理、製品、シーン、テキスト、図表などを認識できます。",
         instruction=vision_prompt,
         tools=[],
