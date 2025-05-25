@@ -10,6 +10,7 @@ from google.adk.tools import agent_tool
 from src.agents.google_search_agent import google_search_agent
 from src.agents.tools.calculator_tools import calculator_tools_list
 from src.agents.tools.notion_tools import notion_tools_list
+from src.agents.tools.web_tools import fetch_web_content
 from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger
 
@@ -31,6 +32,17 @@ notion_prompt_file_path = os.path.join(
     os.path.dirname(__file__), "prompts", "notion.txt"
 )
 notion_prompt = read_prompt_file(notion_prompt_file_path)
+
+extraction_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "content_extraction.txt"
+)
+extraction_prompt = read_prompt_file(extraction_prompt_file_path)
+
+vision_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "vision.txt"
+)
+vision_prompt = read_prompt_file(vision_prompt_file_path)
+
 
 # グローバル変数
 _root_agent = None
@@ -69,12 +81,39 @@ async def create_agent():
         tools=notion_tools_list,
     )
 
+    content_extraction_agent = Agent(
+        name="content_extraction_agent",
+        model="gemini-2.5-pro-latest",
+        description=(
+            "Webページのコンテンツを構造化して抽出するエージェント。"
+            "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
+        ),
+        instruction=extraction_prompt,
+        tools=[],
+    )
+
+    vision_agent = Agent(
+        name="vision_agent",
+        model="gemini-2.0-pro-vision-latest",
+        description="画像を分析して詳細な情報を抽出するエージェント。料理、製品、シーン、テキスト、図表などを認識できます。",
+        instruction=vision_prompt,
+        tools=[],
+    )
+
     _root_agent = LlmAgent(
         model="gemini-2.5-flash-preview-05-20",
         name="root_agent",
         instruction=root_prompt,
-        tools=[agent_tool.AgentTool(agent=google_search_agent)],
-        sub_agents=[calc_agent, notion_agent],
+        tools=[
+            agent_tool.AgentTool(agent=google_search_agent),
+            fetch_web_content,
+        ],
+        sub_agents=[
+            calc_agent,
+            notion_agent,
+            content_extraction_agent,
+            vision_agent,
+        ],
     )
 
     logger.info("Root agent created successfully")
