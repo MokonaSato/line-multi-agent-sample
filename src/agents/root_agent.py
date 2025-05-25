@@ -43,6 +43,15 @@ vision_prompt_file_path = os.path.join(
 )
 vision_prompt = read_prompt_file(vision_prompt_file_path)
 
+# extraction_prompt_path = os.path.join(
+#     os.path.dirname(__file__),
+#     "src",
+#     "agents",
+#     "prompts",
+#     "content_extraction.txt",
+# )
+# extraction_prompt = read_prompt_file(extraction_prompt_path)
+
 
 # グローバル変数
 _root_agent = None
@@ -81,16 +90,16 @@ async def create_agent():
         tools=notion_tools_list,
     )
 
-    content_extraction_agent = Agent(
-        name="content_extraction_agent",
-        model="gemini-2.5-flash-preview-05-20",
-        description=(
-            "Webページのコンテンツを構造化して抽出するエージェント。"
-            "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
-        ),
-        instruction=extraction_prompt,
-        tools=[],
-    )
+    # content_extraction_agent = Agent(
+    #     name="content_extraction_agent",
+    #     model="gemini-2.5-flash-preview-05-20",
+    #     description=(
+    #         "Webページのコンテンツを構造化して抽出するエージェント。"
+    #         "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
+    #     ),
+    #     instruction=extraction_prompt,
+    #     tools=[],
+    # )
 
     vision_agent = Agent(
         name="vision_agent",
@@ -100,19 +109,30 @@ async def create_agent():
         tools=[],
     )
 
+    content_extraction_agent = Agent(
+        name="content_extraction_agent",
+        model="gemini-2.5-flash-preview-05-20",  # 適切なモデルを使用
+        description=(
+            "Webページのコンテンツを構造化して抽出するエージェント。"
+            "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
+        ),
+        instruction=extraction_prompt,
+        tools=[fetch_web_content],  # 正しいツールを登録
+    )
+
     _root_agent = LlmAgent(
         model="gemini-2.5-flash-preview-05-20",
         name="root_agent",
         instruction=root_prompt,
         tools=[
             agent_tool.AgentTool(agent=google_search_agent),
-            fetch_web_content,
         ],
         sub_agents=[
             calc_agent,
             notion_agent,
             content_extraction_agent,
             vision_agent,
+            content_extraction_agent,
         ],
     )
 
