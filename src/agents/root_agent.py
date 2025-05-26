@@ -4,9 +4,8 @@ from contextlib import AsyncExitStack
 
 from google.adk.agents import Agent, SequentialAgent
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.tools import agent_tool
+from google.adk.tools import agent_tool, google_search
 
-from src.agents import google_search_agent
 from src.agents.tools.calculator_tools import calculator_tools_list
 from src.agents.tools.notion_tools import notion_tools_list
 from src.agents.tools.web_tools import fetch_web_content
@@ -58,7 +57,7 @@ async def create_agent():
         logger.info("Returning existing root agent")
         return _root_agent, _exit_stack
 
-    logger.info("Creating new root agent with local Notion MCP Server")
+    logger.info("Creating new root agent")
 
     # --- 1. Define Sub-Agents for Each Pipeline Stage ---
     # Content Extraction Agent
@@ -123,6 +122,14 @@ async def create_agent():
         description="2つの数字を使って四則演算（足し算、引き算、掛け算、割り算）ができる計算エージェント",
         instruction=calc_prompt,
         tools=calculator_tools_list,
+    )
+
+    google_search_agent = Agent(
+        name="google_search_agent",
+        model="gemini-2.0-flash",
+        description="Google検索を使って質問に答えるエージェントです。",
+        instruction="インターネット検索であなたの質問に答えます。何でも聞いてください！",
+        tools=[google_search],
     )
 
     _root_agent = LlmAgent(
