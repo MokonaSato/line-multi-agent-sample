@@ -1,13 +1,12 @@
-# ./adk_agent_samples/mcp_agent/agent.py
+# src/agents/sequential_recipe_agent.py
 import os
 from contextlib import AsyncExitStack
 
-from google.adk.agents import Agent
+from google.adk.agents import Agent, SequentialAgent
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools import agent_tool
 
-# from config import NOTION_TOKEN
-from src.agents.google_search_agent import google_search_agent
+from src.agents import google_search_agent
 from src.agents.tools.calculator_tools import calculator_tools_list
 from src.agents.tools.notion_tools import notion_tools_list
 from src.agents.tools.web_tools import fetch_web_content
@@ -15,42 +14,34 @@ from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger
 
 # ロガーを設定
-logger = setup_logger("root_agent")
-
-# プロンプトファイルのパスを指定
-root_prompt_file_path = os.path.join(
-    os.path.dirname(__file__), "prompts", "root.txt"
-)
-root_prompt = read_prompt_file(root_prompt_file_path)
-
-calc_prompt_file_path = os.path.join(
-    os.path.dirname(__file__), "prompts", "calculator.txt"
-)
-calc_prompt = read_prompt_file(calc_prompt_file_path)
-
-notion_prompt_file_path = os.path.join(
-    os.path.dirname(__file__), "prompts", "notion.txt"
-)
-notion_prompt = read_prompt_file(notion_prompt_file_path)
+logger = setup_logger("sequential_recipe_agent")
 
 extraction_prompt_file_path = os.path.join(
     os.path.dirname(__file__), "prompts", "content_extraction.txt"
 )
 extraction_prompt = read_prompt_file(extraction_prompt_file_path)
 
-vision_prompt_file_path = os.path.join(
-    os.path.dirname(__file__), "prompts", "vision.txt"
+data_transformation_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "data_transformation.txt"
 )
-vision_prompt = read_prompt_file(vision_prompt_file_path)
+data_transformation_prompt = read_prompt_file(
+    data_transformation_prompt_file_path
+)
 
-# extraction_prompt_path = os.path.join(
-#     os.path.dirname(__file__),
-#     "src",
-#     "agents",
-#     "prompts",
-#     "content_extraction.txt",
-# )
-# extraction_prompt = read_prompt_file(extraction_prompt_path)
+notion_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "notion.txt"
+)
+notion_prompt = read_prompt_file(notion_prompt_file_path)
+
+calc_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "calculator.txt"
+)
+calc_prompt = read_prompt_file(calc_prompt_file_path)
+
+root_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "root.txt"
+)
+root_prompt = read_prompt_file(root_prompt_file_path)
 
 
 # グローバル変数
@@ -69,55 +60,69 @@ async def create_agent():
 
     logger.info("Creating new root agent with local Notion MCP Server")
 
-    # 毎回新しいcalculator_agentを作成
+    # --- 1. Define Sub-Agents for Each Pipeline Stage ---
+    # Content Extraction Agent
+    # URLからレシピ情報を抽出する
+    content_extraction_agent = LlmAgent(
+        name="ContentExtractionAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=extraction_prompt,
+        description="URLからレシピ情報を抽出します。",
+        tools=[fetch_web_content],
+        output_key="extracted_recipe_data",
+    )
+
+    # Data Transformation Agent
+    # 抽出されたデータをNotion DB形式に変換する
+    data_transformation_agent = LlmAgent(
+        name="DataTransformationAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=data_transformation_prompt,
+        description="抽出されたレシピデータをNotion DB形式に変換します。",
+        output_key="notion_formatted_data",
+    )
+
+    # Notion Registration Agent
+    # 変換されたデータをNotion DBに登録する
+    notion_registration_agent = LlmAgent(
+        name="NotionRegistrationAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=notion_prompt,
+        description="変換されたデータをNotion データベースに登録します。",
+        tools=notion_tools_list,
+        output_key="registration_result",
+    )
+
+    # --- 2. Create the SequentialAgent ---
+    # レシピ抽出からNotion登録までのパイプラインを実行する
+    recipe_extraction_pipeline = SequentialAgent(
+        name="RecipeExtractionPipeline",
+        sub_agents=[
+            content_extraction_agent,
+            data_transformation_agent,
+            notion_registration_agent,
+        ],
+        description="URLからレシピを抽出し、Notion データベースに登録するパイプラインを実行します。",
+        # エージェントは提供された順序で実行される
+    )
+
+    # --- 3. Root Agent Wrapper ---
+    # ユーザーからのリクエストを受け取り、パイプラインを実行する
+    recipe_workflow_agent = LlmAgent(
+        name="RecipeWorkflowAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction="""""",
+        description="レシピ抽出・登録ワークフローの全体を管理します。",
+        sub_agents=[recipe_extraction_pipeline],
+    )
+    # --- 既存のエージェント ---
+    # 計算エージェント
     calc_agent = Agent(
         name="calculator_agent",
         model="gemini-2.5-flash-preview-05-20",
         description="2つの数字を使って四則演算（足し算、引き算、掛け算、割り算）ができる計算エージェント",
         instruction=calc_prompt,
         tools=calculator_tools_list,
-    )
-
-    notion_agent = Agent(
-        name="notion_agent",
-        model="gemini-2.5-flash-preview-05-20",
-        description=(
-            "NotionワークスペースのデータとやりとりするエージェントFです。"
-            "ページやデータベースの検索、作成、更新、およびコンテンツの管理を行います。"
-            "Notion関連のリクエストに対応します。"
-        ),
-        instruction=notion_prompt,
-        tools=notion_tools_list,
-    )
-
-    # content_extraction_agent = Agent(
-    #     name="content_extraction_agent",
-    #     model="gemini-2.5-flash-preview-05-20",
-    #     description=(
-    #         "Webページのコンテンツを構造化して抽出するエージェント。"
-    #         "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
-    #     ),
-    #     instruction=extraction_prompt,
-    #     tools=[],
-    # )
-
-    vision_agent = Agent(
-        name="vision_agent",
-        model="gemini-2.5-flash-preview-05-20",
-        description="画像を分析して詳細な情報を抽出するエージェント。料理、製品、シーン、テキスト、図表などを認識できます。",
-        instruction=vision_prompt,
-        tools=[],
-    )
-
-    content_extraction_agent = Agent(
-        name="content_extraction_agent",
-        model="gemini-2.5-flash-preview-05-20",  # 適切なモデルを使用
-        description=(
-            "Webページのコンテンツを構造化して抽出するエージェント。"
-            "レシピ、記事、製品情報など様々な種類のコンテンツを分析できます。"
-        ),
-        instruction=extraction_prompt,
-        tools=[fetch_web_content],  # 正しいツールを登録
     )
 
     _root_agent = LlmAgent(
@@ -129,9 +134,7 @@ async def create_agent():
         ],
         sub_agents=[
             calc_agent,
-            notion_agent,
-            content_extraction_agent,
-            vision_agent,
+            recipe_workflow_agent,
         ],
     )
 
