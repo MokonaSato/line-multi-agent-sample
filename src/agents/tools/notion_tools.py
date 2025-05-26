@@ -434,6 +434,39 @@ def notion_create_comment(
     }
 
 
+def notion_get_database(database_id: str) -> Dict[str, Any]:
+    """
+    データベースの詳細情報とカラム（プロパティ）構造を取得
+
+    Args:
+        database_id: データベースID
+
+    Returns:
+        データベース情報のディクショナリ
+        - success: bool - 操作の成功/失敗
+        - database: Dict - 完全なデータベースデータ
+        - title: str - データベースのタイトル
+        - properties: Dict - データベースのカラム（プロパティ）構造
+        - url: str - データベースのURL
+    """
+    result = notion_client._make_request("GET", f"/databases/{database_id}")
+
+    # データベースのタイトルを抽出
+    title = ""
+    if result.get("title"):
+        for title_part in result.get("title", []):
+            if title_part.get("text", {}).get("content"):
+                title += title_part.get("text", {}).get("content", "")
+
+    return {
+        "success": True,
+        "database": result,
+        "title": title,
+        "properties": result.get("properties", {}),
+        "url": result.get("url", ""),
+    }
+
+
 def _extract_page_title(page_data: Dict) -> str:
     """ページデータからタイトルを抽出"""
     try:
@@ -453,25 +486,13 @@ def _extract_page_title(page_data: Dict) -> str:
 
 
 # ツール関数のマッピング（ADK用）
-NOTION_TOOLS = {
-    "notion_search": notion_search,
-    "notion_get_page": notion_get_page,
-    "notion_create_page": notion_create_page,
-    "notion_update_page": notion_update_page,
-    "notion_query_database": notion_query_database,
-    "notion_create_database": notion_create_database,
-    "notion_get_block_children": notion_get_block_children,
-    "notion_append_block_children": notion_append_block_children,
-    "notion_get_users": notion_get_users,
-    "notion_create_comment": notion_create_comment,
-}
-
 notion_tools_list = [
     notion_search,
     notion_get_page,
     notion_create_page,
     notion_update_page,
     notion_query_database,
+    notion_get_database,  # 新しく追加したツール
     notion_create_database,
     notion_get_block_children,
     notion_append_block_children,

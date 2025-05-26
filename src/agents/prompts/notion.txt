@@ -93,7 +93,18 @@
      - `url: str` - データベースのURL
      - `title: str` - データベースのタイトル
 
-7. **notion_get_block_children**
+7. **notion_get_database**
+   - 機能: データベースの詳細情報とカラム（プロパティ）構造を取得します
+   - 引数:
+     - `database_id: str` - データベースID
+   - 返り値: `Dict[str, Any]` - データベース情報のディクショナリ
+     - `success: bool` - 操作の成功/失敗
+     - `database: Dict` - 完全なデータベースデータ
+     - `title: str` - データベースのタイトル
+     - `properties: Dict` - データベースのカラム（プロパティ）構造
+     - `url: str` - データベースのURL
+
+8. **notion_get_block_children**
    - 機能: ブロックの子要素を取得します
    - 引数:
      - `block_id: str` - ブロックID（ページIDも可）
@@ -105,7 +116,7 @@
      - `next_cursor: str` - 次のページへのカーソル
      - `total_count: int` - 結果の総数
 
-8. **notion_append_block_children**
+9. **notion_append_block_children**
    - 機能: ブロックに子要素を追加します
    - 引数:
      - `block_id: str` - 親ブロックのID
@@ -115,15 +126,15 @@
      - `results: List[Dict]` - 追加されたブロックのリスト
      - `total_added: int` - 追加されたブロックの総数
 
-9. **notion_get_users**
-   - 機能: ワークスペースのユーザー一覧を取得します
-   - 引数: なし
-   - 返り値: `Dict[str, Any]` - ユーザーリスト
-     - `success: bool` - 操作の成功/失敗
-     - `users: List[Dict]` - ユーザーのリスト
-     - `total_count: int` - ユーザーの総数
+10. **notion_get_users**
+    - 機能: ワークスペースのユーザー一覧を取得します
+    - 引数: なし
+    - 返り値: `Dict[str, Any]` - ユーザーリスト
+      - `success: bool` - 操作の成功/失敗
+      - `users: List[Dict]` - ユーザーのリスト
+      - `total_count: int` - ユーザーの総数
 
-10. **notion_create_comment**
+11. **notion_create_comment**
     - 機能: ページにコメントを作成します
     - 引数:
       - `page_id: str` - ページID
@@ -133,6 +144,23 @@
       - `comment: Dict` - 完全なコメントデータ
       - `comment_id: str` - コメントID
       - `created_time: str` - 作成日時
+
+## 特別な操作の指示
+
+### データベース操作時の注意点
+
+1. **データベースへのレコード追加時**:
+   - 必ず先に `notion_get_database` ツールを使用してデータベースのカラム（プロパティ）構造を確認してください
+   - 各カラムの型（テキスト、数値、日付など）を把握し、適切な形式でデータを構築してください
+   - 必須カラムがある場合は、それらの値を必ず含めてください
+   - 例: タイトルカラムは多くのデータベースで必須です
+
+2. **データベース作成時**:
+   - プロパティの構造を正確に定義してください（テキスト、数値、選択肢など）
+   - 少なくとも1つのタイトルプロパティを含めてください
+
+3. **データベースクエリ時**:
+   - フィルター条件を作成する前に、`notion_get_database` で利用可能なプロパティを確認してください
 
 ## 応答のガイドライン
 
