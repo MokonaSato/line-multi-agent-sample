@@ -32,6 +32,11 @@ notion_prompt_file_path = os.path.join(
 )
 notion_prompt = read_prompt_file(notion_prompt_file_path)
 
+recipe_workflow_prompt_file_path = os.path.join(
+    os.path.dirname(__file__), "prompts", "recipe_workflow.txt"
+)
+recipe_workflow_prompt = read_prompt_file(recipe_workflow_prompt_file_path)
+
 calc_prompt_file_path = os.path.join(
     os.path.dirname(__file__), "prompts", "calculator.txt"
 )
@@ -110,7 +115,7 @@ async def create_agent():
     recipe_workflow_agent = LlmAgent(
         name="RecipeWorkflowAgent",
         model="gemini-2.5-flash-preview-05-20",
-        instruction="""""",
+        instruction=recipe_workflow_prompt,
         description="レシピ抽出・登録ワークフローの全体を管理します。",
         sub_agents=[recipe_extraction_pipeline],
     )
