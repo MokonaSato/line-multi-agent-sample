@@ -96,6 +96,18 @@ async def call_agent_async(
 
         # イベントを非同期で処理
         async for event in events_async:
+            if event.author != "user" and event.content:
+                parts = event.content.parts
+                if parts and parts[0].function_call:
+                    logger.info(
+                        f"[{event.author}]→ call "
+                        f"{parts[0].function_call.name}"
+                    )
+                elif parts and parts[0].function_response:
+                    logger.info(
+                        f"[{event.author}]← response "
+                        f"{parts[0].function_response.name}"
+                    )
             if (
                 event.is_final_response()
                 and event.content

@@ -13,36 +13,126 @@
 
 以下のNotion APIツールが利用可能です：
 
-1. **notion_search**: ワークスペースのページやデータベースを検索します。
-   - 特定のワードやタイトルで検索し、該当アイテムを見つけるのに使用します
-   - 'filter_type'パラメータで'page'や'database'に絞り込めます
+1. **notion_search**
+   - 機能: ワークスペースのページやデータベースを検索します
+   - 引数:
+     - `query: str` - 検索クエリ
+     - `page_size: int = 10` - 結果の最大数 (1-100)
+     - `filter_type: Optional[str] = None` - フィルターのタイプ ('page' または 'database')
+   - 返り値: `Dict[str, Any]` - 検索結果を含む辞書
+     - `success: bool` - 操作の成功/失敗
+     - `results: List[Dict]` - 検索結果のリスト
+     - `has_more: bool` - 追加の結果があるかどうか
+     - `next_cursor: str` - 次のページへのカーソル
+     - `total_count: int` - 結果の総数
 
-2. **notion_get_page**: 特定ページの詳細情報を取得します。
-   - ページIDを指定すると、そのページのプロパティや情報が返されます
+2. **notion_get_page**
+   - 機能: 特定ページの詳細情報を取得します
+   - 引数:
+     - `page_id: str` - ページID
+   - 返り値: `Dict[str, Any]` - ページ情報の辞書
+     - `success: bool` - 操作の成功/失敗
+     - `page: Dict` - 完全なページデータ
+     - `title: str` - ページのタイトル
+     - `url: str` - ページのURL
+     - `created_time: str` - 作成日時
+     - `last_edited_time: str` - 最終編集日時
 
-3. **notion_create_page**: 新しいページを作成します。
-   - 親ページID、タイトル、コンテンツを指定して新規ページを作成できます
+3. **notion_create_page**
+   - 機能: 新しいページを作成します
+   - 引数:
+     - `parent_id: str` - 親ページまたはデータベースのID
+     - `title: str` - ページタイトル
+     - `content: Optional[List[Dict[str, Any]]] = None` - ページコンテンツ（ブロックの配列）
+     - `parent_type: str = "page"` - 親のタイプ ('page' または 'database')
+     - `properties: Optional[Dict[str, Any]] = None` - ページのプロパティ
+   - 返り値: `Dict[str, Any]` - 作成されたページの情報
+     - `success: bool` - 操作の成功/失敗
+     - `page: Dict` - 完全なページデータ
+     - `page_id: str` - 作成されたページのID
+     - `url: str` - ページのURL
+     - `title: str` - ページのタイトル
 
-4. **notion_update_page**: ページのプロパティを更新します。
-   - プロパティの変更やアーカイブ操作が可能です
+4. **notion_update_page**
+   - 機能: ページのプロパティを更新します
+   - 引数:
+     - `page_id: str` - ページID
+     - `properties: Optional[Dict[str, Any]] = None` - 更新するプロパティ
+     - `archived: Optional[bool] = None` - アーカイブするかどうか
+   - 返り値: `Dict[str, Any]` - 更新されたページの情報
+     - `success: bool` - 操作の成功/失敗
+     - `page: Dict` - 完全なページデータ
+     - `page_id: str` - ページID
+     - `last_edited_time: str` - 最終編集日時
 
-5. **notion_query_database**: データベースのクエリを実行します。
-   - フィルターやソート条件を指定してデータベースのエントリを検索できます
+5. **notion_query_database**
+   - 機能: データベースのクエリを実行します
+   - 引数:
+     - `database_id: str` - データベースID
+     - `filter_conditions: Optional[Dict[str, Any]] = None` - フィルター条件
+     - `sorts: Optional[List[Dict[str, Any]]] = None` - ソート条件
+     - `page_size: int = 100` - 結果の最大数 (1-100)
+   - 返り値: `Dict[str, Any]` - クエリ結果の辞書
+     - `success: bool` - 操作の成功/失敗
+     - `results: List[Dict]` - データベース行のリスト
+     - `has_more: bool` - 追加の結果があるかどうか
+     - `next_cursor: str` - 次のページへのカーソル
+     - `total_count: int` - 結果の総数
 
-6. **notion_create_database**: 新しいデータベースを作成します。
-   - 親ページの下に新規データベースを作成し、プロパティスキーマを定義します
+6. **notion_create_database**
+   - 機能: 新しいデータベースを作成します
+   - 引数:
+     - `parent_id: str` - 親ページのID
+     - `title: str` - データベースタイトル
+     - `properties: Dict[str, Any]` - データベースのプロパティスキーマ
+     - `parent_type: str = "page"` - 親のタイプ
+   - 返り値: `Dict[str, Any]` - 作成されたデータベースの情報
+     - `success: bool` - 操作の成功/失敗
+     - `database: Dict` - 完全なデータベースデータ
+     - `database_id: str` - 作成されたデータベースのID
+     - `url: str` - データベースのURL
+     - `title: str` - データベースのタイトル
 
-7. **notion_get_block_children**: ブロックの子要素を取得します。
-   - ページやブロックの子コンテンツを取得できます
+7. **notion_get_block_children**
+   - 機能: ブロックの子要素を取得します
+   - 引数:
+     - `block_id: str` - ブロックID（ページIDも可）
+     - `page_size: int = 100` - 結果の最大数 (1-100)
+   - 返り値: `Dict[str, Any]` - 子ブロックのリスト
+     - `success: bool` - 操作の成功/失敗
+     - `results: List[Dict]` - 子ブロックのリスト
+     - `has_more: bool` - 追加の結果があるかどうか
+     - `next_cursor: str` - 次のページへのカーソル
+     - `total_count: int` - 結果の総数
 
-8. **notion_append_block_children**: ブロックに子要素を追加します。
-   - 既存のページやブロックに新しいコンテンツを追加できます
+8. **notion_append_block_children**
+   - 機能: ブロックに子要素を追加します
+   - 引数:
+     - `block_id: str` - 親ブロックのID
+     - `children: List[Dict[str, Any]]` - 追加するブロックの配列
+   - 返り値: `Dict[str, Any]` - 追加されたブロックの情報
+     - `success: bool` - 操作の成功/失敗
+     - `results: List[Dict]` - 追加されたブロックのリスト
+     - `total_added: int` - 追加されたブロックの総数
 
-9. **notion_get_users**: ワークスペースのユーザー一覧を取得します。
-   - 現在のワークスペースのユーザー情報を取得します
+9. **notion_get_users**
+   - 機能: ワークスペースのユーザー一覧を取得します
+   - 引数: なし
+   - 返り値: `Dict[str, Any]` - ユーザーリスト
+     - `success: bool` - 操作の成功/失敗
+     - `users: List[Dict]` - ユーザーのリスト
+     - `total_count: int` - ユーザーの総数
 
-10. **notion_create_comment**: ページにコメントを作成します。
-    - 指定したページにコメントを追加できます
+10. **notion_create_comment**
+    - 機能: ページにコメントを作成します
+    - 引数:
+      - `page_id: str` - ページID
+      - `rich_text: List[Dict[str, Any]]` - コメントのリッチテキスト
+    - 返り値: `Dict[str, Any]` - 作成されたコメントの情報
+      - `success: bool` - 操作の成功/失敗
+      - `comment: Dict` - 完全なコメントデータ
+      - `comment_id: str` - コメントID
+      - `created_time: str` - 作成日時
 
 ## 応答のガイドライン
 

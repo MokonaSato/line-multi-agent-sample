@@ -166,7 +166,7 @@ def notion_create_page(
     title: str,
     content: Optional[List[Dict[str, Any]]] = None,
     parent_type: str = "page",
-    properties: Optional[Dict[str, Any]] = None,  # propertiesパラメータを追加
+    properties: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     新しいページを作成
@@ -181,16 +181,31 @@ def notion_create_page(
     Returns:
         作成されたページの情報
     """
+    # parent_idが空でないことを確認
+    if not parent_id:
+        return {
+            "success": False,
+            "error": "親ページまたはデータベースIDが指定されていません",
+        }
+
+    # 親タイプの検証
+    if parent_type not in ["page", "database"]:
+        parent_type = "page"  # デフォルトに設定
+
     if properties is None:
         # デフォルトのプロパティを設定
         data = {
-            "parent": {f"{parent_type}_id": parent_id},
+            "parent": {
+                f"{parent_type}_id": parent_id
+            },  # ここが正しく設定されているか確認
             "properties": {"title": {"title": [{"text": {"content": title}}]}},
         }
     else:
         # プロパティが指定されている場合はそれを使用
         data = {
-            "parent": {f"{parent_type}_id": parent_id},
+            "parent": {
+                f"{parent_type}_id": parent_id
+            },  # ここが正しく設定されているか確認
             "properties": properties,
         }
         # titleプロパティがない場合は追加
@@ -201,6 +216,9 @@ def notion_create_page(
 
     if content:
         data["children"] = content
+
+    # デバッグ用にリクエストデータを出力
+    logging.debug(f"Notion create page request data: {data}")
 
     result = notion_client._make_request("POST", "/pages", data)
 
