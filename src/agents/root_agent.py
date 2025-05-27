@@ -32,10 +32,16 @@ def _load_all_prompts() -> Dict[str, str]:
     """すべてのプロンプトファイルを一括で読み込む"""
     prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
     prompt_files = {
-        "recipe_extraction": "content_extraction_for_recipe.txt",
-        "data_transformation": "data_transformation.txt",
-        "recipe_notion": "notion_for_recipe.txt",
-        "recipe_workflow": "recipe_workflow.txt",
+        "recipe_extraction": "url_recipe_workflow/content_extraction.txt",
+        "data_transformation": "url_recipe_workflow/data_transformation.txt",
+        "recipe_notion": "url_recipe_workflow/notion.txt",
+        "recipe_workflow": "url_recipe_workflow/recipe_workflow.txt",
+        "image_analysis": "image_recipe_workflow/image_analysis.txt",
+        "image_data_enhancement": (
+            "image_recipe_workflow/image_data_enhancement.txt"
+        ),
+        "image_notion": "image_recipe_workflow/notion.txt",
+        "image_workflow": "image_recipe_workflow/image_workflow.txt",
         "calculator": "calculator.txt",
         "notion": "notion.txt",
         "root": "root.txt",
@@ -55,7 +61,7 @@ def _load_all_prompts() -> Dict[str, str]:
     return prompts
 
 
-def _create_recipe_pipeline(prompts: Dict[str, str]) -> SequentialAgent:
+def _create_url_recipe_pipeline(prompts: Dict[str, str]) -> SequentialAgent:
     """レシピ抽出パイプラインを作成する"""
     # Content Extraction Agent - URLからレシピ情報を抽出
     content_extraction_agent = LlmAgent(
@@ -99,6 +105,53 @@ def _create_recipe_pipeline(prompts: Dict[str, str]) -> SequentialAgent:
     )
 
 
+def _create_image_recipe_pipeline(prompts: Dict[str, str]) -> SequentialAgent:
+    """画像レシピ抽出エージェントを作成"""
+
+    logger.info("Creating image recipe extraction agents")
+
+    # --- 1. Image Analysis Agent ---
+    image_analysis_agent = LlmAgent(
+        name="ImageAnalysisAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=prompts["image_analysis"],
+        description="画像を分析してレシピ情報を抽出します。",
+        tools=[],  # Geminiの視覚認識機能を使用
+        output_key="extracted_image_data",
+    )
+
+    # --- 2. Image Data Enhancement Agent ---
+    image_data_enhancement_agent = LlmAgent(
+        name="ImageDataEnhancementAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=prompts["image_data_enhancement"],
+        description="抽出された画像データを実用的なレシピに強化します。",
+        tools=[],  # データ処理のみ
+        output_key="enhanced_recipe_data",
+    )
+
+    # --- 3. Recipe Notion Agent (既存のものを再利用) ---
+    recipe_notion_agent = LlmAgent(
+        name="RecipeNotionAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=prompts["image_notion"],  # 既存のレシピ登録専用プロンプト
+        description="強化されたレシピデータを料理レシピデータベースに登録します。",
+        tools=notion_tools_list,
+        output_key="registration_result",
+    )
+
+    # --- 4. Sequential Pipeline ---
+    return SequentialAgent(
+        name="ImageRecipeExtractionPipeline",
+        sub_agents=[
+            image_analysis_agent,
+            image_data_enhancement_agent,
+            recipe_notion_agent,
+        ],
+        description="画像からレシピを抽出し、Notion レシピデータベースに登録するパイプラインを実行します。",
+    )
+
+
 def _create_standard_agents(prompts: Dict[str, str]) -> List[Agent]:
     """標準的なサブエージェントを作成する"""
     # 計算エージェント
@@ -111,13 +164,22 @@ def _create_standard_agents(prompts: Dict[str, str]) -> List[Agent]:
     )
 
     # レシピワークフローエージェント - レシピパイプラインのラッパー
-    recipe_pipeline = _create_recipe_pipeline(prompts)
-    recipe_workflow_agent = LlmAgent(
+    url_recipe_pipeline = _create_url_recipe_pipeline(prompts)
+    url_recipe_workflow_agent = LlmAgent(
         name="RecipeWorkflowAgent",
         model="gemini-2.5-flash-preview-05-20",
         instruction=prompts["recipe_workflow"],
-        description="レシピ抽出・登録ワークフローの全体を管理します。",
-        sub_agents=[recipe_pipeline],
+        description="URLからのレシピ抽出・登録ワークフローの全体を管理します。",
+        sub_agents=[url_recipe_pipeline],
+    )
+
+    image_recipe_pipeline = _create_image_recipe_pipeline(prompts)
+    image_recipe_workflow_agent = LlmAgent(
+        name="ImageRecipeWorkflowAgent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=prompts["image_workflow"],
+        description="画像レシピ抽出・登録ワークフローの全体を管理します。",
+        sub_agents=[image_recipe_pipeline],
     )
 
     # Google検索エージェント
@@ -145,7 +207,8 @@ def _create_standard_agents(prompts: Dict[str, str]) -> List[Agent]:
 
     return {
         "calc_agent": calc_agent,
-        "recipe_workflow_agent": recipe_workflow_agent,
+        "url_recipe_workflow_agent": url_recipe_workflow_agent,
+        "image_recipe_workflow_agent": image_recipe_workflow_agent,
         "google_search_agent": google_search_agent,
         "notion_agent": notion_agent,
     }
@@ -183,7 +246,8 @@ async def create_agent() -> Tuple[LlmAgent, AsyncExitStack]:
             ],
             sub_agents=[
                 agents["calc_agent"],
-                agents["recipe_workflow_agent"],
+                agents["url_recipe_workflow_agent"],
+                agents["image_recipe_workflow_agent"],
                 agents["notion_agent"],
             ],
         )
