@@ -1,8 +1,3 @@
-"""
-Notion API操作ツール
-Google ADK Agent用のNotion APIツール集
-"""
-
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -57,6 +52,8 @@ class NotionAPIClient:
                 logging.info(
                     f"POSTデータ構造: {list(data.keys()) if data else None}"
                 )
+                # デバッグ用にリクエストデータを詳細ログに出力
+                logging.debug(f"完全なPOSTデータ: {data}")
                 response = requests.post(url, headers=self.headers, json=data)
             elif method == "PATCH":
                 logging.info(
@@ -107,6 +104,61 @@ class NotionAPIClient:
 
 # Notion APIクライアントのインスタンス
 notion_client = NotionAPIClient()
+
+# レシピデータベースのプロパティマッピング
+RECIPE_PROPERTY_MAPPING = {
+    "名前": {
+        "property_id": "title",  # これがタイトルプロパティのID
+        "type": "title",
+    },
+    "材料": {"property_id": "%60DJT", "type": "rich_text"},
+    "手順": {"property_id": "~wUl", "type": "rich_text"},
+    "人数": {"property_id": "R%40xc", "type": "number"},
+    "調理時間": {"property_id": "sD%3CH", "type": "number"},
+    "保存期間": {"property_id": "%5BZRQ", "type": "number"},
+    "URL": {"property_id": "RfME", "type": "url"},
+}
+
+
+def _build_recipe_properties(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
+    """レシピデータからNotionプロパティを構築"""
+    properties = {}
+
+    # タイトルプロパティ（名前）
+    if "名前" in recipe_data:
+        properties["名前"] = {
+            "title": [{"text": {"content": str(recipe_data["名前"])}}]
+        }
+
+    # リッチテキストプロパティ
+    for field_name in ["材料", "手順"]:
+        if field_name in recipe_data:
+            content = str(recipe_data[field_name])
+            # 2000文字制限対応
+            if len(content) > 2000:
+                content = content[:1997] + "..."
+            properties[field_name] = {
+                "rich_text": [{"text": {"content": content}}]
+            }
+
+    # 数値プロパティ
+    for field_name in ["人数", "調理時間", "保存期間"]:
+        if field_name in recipe_data:
+            value = recipe_data[field_name]
+            # 数値に変換、失敗した場合は0
+            try:
+                numeric_value = float(value) if value is not None else 0
+                properties[field_name] = {"number": numeric_value}
+            except (ValueError, TypeError):
+                properties[field_name] = {"number": 0}
+
+    # URLプロパティ
+    if "URL" in recipe_data:
+        url_value = str(recipe_data["URL"]) if recipe_data["URL"] else ""
+        if url_value:
+            properties["URL"] = {"url": url_value}
+
+    return properties
 
 
 def notion_search(
@@ -176,7 +228,7 @@ def notion_create_page(
         title: ページタイトル
         content: ページコンテンツ（ブロックの配列）
         parent_type: 親のタイプ ('page' または 'database')
-        properties: ページのプロパティ（titleプロパティが指定されていない場合は自動で追加）
+        properties: ページのプロパティ
 
     Returns:
         作成されたページの情報
@@ -195,22 +247,18 @@ def notion_create_page(
     if properties is None:
         # デフォルトのプロパティを設定
         data = {
-            "parent": {
-                f"{parent_type}_id": parent_id
-            },  # ここが正しく設定されているか確認
-            "properties": {"title": {"title": [{"text": {"content": title}}]}},
+            "parent": {f"{parent_type}_id": parent_id},
+            "properties": {"名前": {"title": [{"text": {"content": title}}]}},
         }
     else:
         # プロパティが指定されている場合はそれを使用
         data = {
-            "parent": {
-                f"{parent_type}_id": parent_id
-            },  # ここが正しく設定されているか確認
+            "parent": {f"{parent_type}_id": parent_id},
             "properties": properties,
         }
-        # titleプロパティがない場合は追加
-        if "title" not in properties:
-            data["properties"]["title"] = {
+        # タイトルプロパティがない場合は追加
+        if "名前" not in properties and "title" not in properties:
+            data["properties"]["名前"] = {
                 "title": [{"text": {"content": title}}]
             }
 
@@ -220,15 +268,56 @@ def notion_create_page(
     # デバッグ用にリクエストデータを出力
     logging.debug(f"Notion create page request data: {data}")
 
-    result = notion_client._make_request("POST", "/pages", data)
+    try:
+        result = notion_client._make_request("POST", "/pages", data)
 
-    return {
-        "success": True,
-        "page": result,
-        "page_id": result.get("id"),
-        "url": result.get("url"),
-        "title": title,
-    }
+        return {
+            "success": True,
+            "page": result,
+            "page_id": result.get("id"),
+            "url": result.get("url"),
+            "title": title,
+        }
+    except Exception as e:
+        logging.error(f"ページ作成エラー: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "page_id": None,
+            "url": None,
+            "title": title,
+        }
+
+
+def notion_create_recipe_page(
+    recipe_data: Dict[str, Any],
+    database_id: str = "1f79a940-1325-80d9-93c6-c33da454f18f",
+) -> Dict[str, Any]:
+    """
+    レシピデータベース専用のページ作成関数
+
+    Args:
+        recipe_data: レシピデータ（名前、材料、手順、etc.）
+        database_id: レシピデータベースのID
+
+    Returns:
+        作成されたページの情報
+    """
+    logging.info(f"Creating recipe page with data: {list(recipe_data.keys())}")
+
+    # レシピデータからプロパティを構築
+    properties = _build_recipe_properties(recipe_data)
+
+    logging.info(f"Built properties: {list(properties.keys())}")
+    logging.debug(f"Properties detail: {properties}")
+
+    # ページ作成
+    return notion_create_page(
+        parent_id=database_id,
+        title=recipe_data.get("名前", "新しいレシピ"),
+        parent_type="database",
+        properties=properties,
+    )
 
 
 def notion_update_page(
@@ -443,11 +532,6 @@ def notion_get_database(database_id: str) -> Dict[str, Any]:
 
     Returns:
         データベース情報のディクショナリ
-        - success: bool - 操作の成功/失敗
-        - database: Dict - 完全なデータベースデータ
-        - title: str - データベースのタイトル
-        - properties: Dict - データベースのカラム（プロパティ）構造
-        - url: str - データベースのURL
     """
     result = notion_client._make_request("GET", f"/databases/{database_id}")
 
@@ -490,9 +574,10 @@ notion_tools_list = [
     notion_search,
     notion_get_page,
     notion_create_page,
+    notion_create_recipe_page,  # 追加：レシピ専用ページ作成
     notion_update_page,
     notion_query_database,
-    notion_get_database,  # 新しく追加したツール
+    notion_get_database,
     notion_create_database,
     notion_get_block_children,
     notion_append_block_children,
