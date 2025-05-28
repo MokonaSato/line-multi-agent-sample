@@ -11,6 +11,7 @@ from linebot.v3.messaging import (
     ApiClient,
     Configuration,
     MessagingApi,
+    MessagingApiBlob,
     ReplyMessageRequest,
     TextMessage,
 )
@@ -139,11 +140,12 @@ def process_events(body: str, signature: str):
                     elif isinstance(ev.message, ImageMessageContent):
                         logger.info(f"Received image message: {ev.message.id}")
 
-                        # 画像データを取得
-                        image_content = line_api.get_message_content(
-                            ev.message.id
-                        )
-                        image_data = image_content.read()
+                        # 画像データを取得（正しいAPI使用方法）
+                        with ApiClient(configuration) as blob_api_client:
+                            blob_api = MessagingApiBlob(blob_api_client)
+                            image_content = blob_api.get_message_content(
+                                ev.message.id
+                            )
 
                         # デフォルトメッセージ（画像のみの場合）
                         default_message = "この画像からレシピを抽出してNotionに登録してください"
@@ -152,7 +154,7 @@ def process_events(body: str, signature: str):
                         reply_text = asyncio.run(
                             call_agent_with_image_async(
                                 message=default_message,
-                                image_data=image_data,
+                                image_data=image_content,
                                 image_mime_type="image/jpeg",  # LINEは通常JPEG
                                 user_id=user_id,
                             )
