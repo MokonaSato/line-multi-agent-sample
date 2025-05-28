@@ -14,9 +14,15 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage,
 )
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks import (
+    ImageMessageContent,
+    MessageEvent,
+    TextMessageContent,
+)
 
-# from src.services.agent_service import call_agent_async
+from src.services.agent_service import (
+    call_agent_with_image_async,
+)  # 新しい関数
 from src.services.agent_service import (
     call_agent_async,
     cleanup_resources,
@@ -42,7 +48,6 @@ async def startup_event():
         logger.info("Agent initialization completed")
     except Exception as e:
         logger.error(f"Failed to initialize agent: {e}")
-        # 起動時のエラーは重大なので、例外を再発生させる
         raise
 
 
@@ -51,13 +56,11 @@ async def startup_event():
 async def shutdown_event():
     logger.info("Cleaning up resources on application shutdown")
     try:
-        # エージェントのリソースをクリーンアップ
         await cleanup_resources()
         logger.info("Agent resources cleanup completed")
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
-    # スレッドプールもシャットダウン
     executor.shutdown(wait=True)
     logger.info("Thread pool executor shutdown completed")
 
@@ -95,9 +98,7 @@ def process_events(body: str, signature: str):
     """LINE から届いたイベントをまとめて処理（スレッド内で実行）"""
     logger.info("Processing LINE events in background thread")
     try:
-        events = parser.parse(
-            body, signature
-        )  # 署名検証＆パース（★公式そのまま）
+        events = parser.parse(body, signature)
     except Exception as e:
         logger.exception(f"Failed to parse events: {e}")
         return
@@ -108,31 +109,88 @@ def process_events(body: str, signature: str):
         line_api = MessagingApi(api_client)
 
         for ev in events:
-            # テキストメッセージのみ対象
-            if isinstance(ev, MessageEvent) and isinstance(
-                ev.message, TextMessageContent
-            ):
+            if isinstance(ev, MessageEvent):
                 try:
-                    logger.info(f"Received message: {ev.message.text}")
-                    # 1) AI エージェント呼び出し（async → sync）
-                    reply_text = asyncio.run(
-                        call_agent_async(
-                            ev.message.text,
-                            user_id=ev.source.user_id,
+                    user_id = ev.source.user_id
+                    reply_token = ev.reply_token
+
+                    # テキストメッセージの処理
+                    if isinstance(ev.message, TextMessageContent):
+                        logger.info(
+                            f"Received text message: {ev.message.text}"
                         )
-                    )
-                    # reply_textの文末の改行を除く
-                    reply_text = reply_text.rstrip("\n")
-                    logger.info(f"Replying with: {reply_text}")
-                    # 2) LINE に返信（同期 HTTP）
-                    line_api.reply_message(
-                        ReplyMessageRequest(
-                            reply_token=ev.reply_token,
-                            messages=[TextMessage(text=reply_text)],
+                        reply_text = asyncio.run(
+                            call_agent_async(
+                                ev.message.text,
+                                user_id=user_id,
+                            )
                         )
-                    )
+                        reply_text = reply_text.rstrip("\n")
+                        logger.info(f"Replying with: {reply_text}")
+
+                        line_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=reply_token,
+                                messages=[TextMessage(text=reply_text)],
+                            )
+                        )
+
+                    # 画像メッセージの処理
+                    elif isinstance(ev.message, ImageMessageContent):
+                        logger.info(f"Received image message: {ev.message.id}")
+
+                        # 画像データを取得
+                        image_content = line_api.get_message_content(
+                            ev.message.id
+                        )
+                        image_data = image_content.read()
+
+                        # デフォルトメッセージ（画像のみの場合）
+                        default_message = "この画像からレシピを抽出してNotionに登録してください"
+
+                        # 画像対応エージェントを呼び出し
+                        reply_text = asyncio.run(
+                            call_agent_with_image_async(
+                                message=default_message,
+                                image_data=image_data,
+                                image_mime_type="image/jpeg",  # LINEは通常JPEG
+                                user_id=user_id,
+                            )
+                        )
+                        reply_text = reply_text.rstrip("\n")
+                        logger.info(f"Replying with: {reply_text}")
+
+                        line_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=reply_token,
+                                messages=[TextMessage(text=reply_text)],
+                            )
+                        )
+
+                    else:
+                        logger.info(
+                            f"Unsupported message type: {type(ev.message)}"
+                        )
+
                 except Exception as e:
                     logger.exception(f"Error while handling event: {e}")
+
+                    # エラー時もユーザーに応答
+                    try:
+                        error_message = (
+                            "申し訳ございません。処理中にエラーが発生しました。"
+                            "しばらく時間をおいてから再試行してください。"
+                        )
+                        line_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=ev.reply_token,
+                                messages=[TextMessage(text=error_message)],
+                            )
+                        )
+                    except Exception as reply_error:
+                        logger.exception(
+                            f"Failed to send error message: {reply_error}"
+                        )
 
 
 @app.post("/callback")

@@ -45,6 +45,7 @@ def _load_all_prompts() -> Dict[str, str]:
         "calculator": "calculator.txt",
         "notion": "notion.txt",
         "root": "root.txt",
+        "vision": "vision.txt",  # 追加
     }
 
     prompts = {}
@@ -205,12 +206,26 @@ def _create_standard_agents(prompts: Dict[str, str]) -> List[Agent]:
         output_key="registration_result",
     )
 
+    # 汎用画像認識エージェント（レシピ以外の画像分析用）
+    vision_agent = LlmAgent(
+        name="vision_agent",
+        model="gemini-2.5-flash-preview-05-20",
+        instruction=prompts["vision"],
+        description=(
+            "画像を分析して詳細な情報を抽出します。料理写真、製品画像、"
+            "スクリーンショット、図表などから視覚的要素を認識し、詳細な説明と"
+            "関連データを提供します。"
+        ),
+        tools=[],  # 画像分析のみ
+    )
+
     return {
         "calc_agent": calc_agent,
         "url_recipe_workflow_agent": url_recipe_workflow_agent,
         "image_recipe_workflow_agent": image_recipe_workflow_agent,
         "google_search_agent": google_search_agent,
         "notion_agent": notion_agent,
+        "vision_agent": vision_agent,
     }
 
 
@@ -249,6 +264,7 @@ async def create_agent() -> Tuple[LlmAgent, AsyncExitStack]:
                 agents["url_recipe_workflow_agent"],
                 agents["image_recipe_workflow_agent"],
                 agents["notion_agent"],
+                agents["vision_agent"],
             ],
         )
 
