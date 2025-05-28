@@ -57,7 +57,15 @@ def _load_all_prompts() -> Dict[str, str]:
             logger.error(
                 f"プロンプトファイル '{filename}' の読み込みに失敗: {e}"
             )
-            prompts[key] = f"Error loading prompt: {str(e)}"
+            # vision.txtが存在しない場合は基本的なプロンプトを提供
+            if key == "vision":
+                prompts[
+                    key
+                ] = """あなたは画像を分析する専門家です。
+提供された画像の内容を詳細に説明し、関連情報を抽出してください。
+画像のタイプ（料理、製品、文書など）を特定し、適切な情報を抽出してください。"""
+            else:
+                prompts[key] = f"Error loading prompt: {str(e)}"
 
     return prompts
 
@@ -122,10 +130,15 @@ def _create_image_recipe_pipeline(prompts: Dict[str, str]) -> SequentialAgent:
     )
 
     # --- 2. Image Data Enhancement Agent ---
+    # プロンプトを動的に生成してコンテキスト変数を正しく設定
+    enhancement_instruction = prompts["image_data_enhancement"].replace(
+        "{extracted_recipe_data}", "{extracted_image_data}"
+    )
+
     image_data_enhancement_agent = LlmAgent(
         name="ImageDataEnhancementAgent",
         model="gemini-2.5-flash-preview-05-20",
-        instruction=prompts["image_data_enhancement"],
+        instruction=enhancement_instruction,
         description="抽出された画像データを実用的なレシピに強化します。",
         tools=[],  # データ処理のみ
         output_key="enhanced_recipe_data",
@@ -213,8 +226,8 @@ def _create_standard_agents(prompts: Dict[str, str]) -> List[Agent]:
         instruction=prompts["vision"],
         description=(
             "画像を分析して詳細な情報を抽出します。料理写真、製品画像、"
-            "スクリーンショット、図表などから視覚的要素を認識し、詳細な説明と"
-            "関連データを提供します。"
+            "スクリーンショット、図表などから視覚的要素を認識し、"
+            "詳細な説明と関連データを提供します。"
         ),
         tools=[],  # 画像分析のみ
     )

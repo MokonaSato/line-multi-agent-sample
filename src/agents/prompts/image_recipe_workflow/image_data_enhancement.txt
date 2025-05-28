@@ -4,7 +4,7 @@
 
 ## 入力データ
 前のエージェント（ImageAnalysisAgent）から以下の形式のデータを受け取ります：
-{extracted_recipe_data}
+{extracted_image_data}
 
 ## 強化タスク
 画像から抽出された情報をもとに、以下の処理を行ってください：
