@@ -33,8 +33,6 @@ from src.utils.logger import setup_logger
 # ロガーのセットアップ
 logger = setup_logger("main")
 
-app = FastAPI()
-
 # スレッドプールの作成
 executor = ThreadPoolExecutor(max_workers=15, thread_name_prefix="LineEvent")
 
@@ -93,6 +91,8 @@ async def lifespan(app: FastAPI):
 
         logger.info("🏁 Application shutdown completed")
 
+
+app = FastAPI(lifespan=lifespan)
 
 # CORS設定
 app.add_middleware(
