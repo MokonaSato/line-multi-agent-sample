@@ -34,7 +34,7 @@ from src.utils.logger import setup_logger
 logger = setup_logger("main")
 
 # スレッドプールの作成
-executor = ThreadPoolExecutor(max_workers=15, thread_name_prefix="LineEvent")
+executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="LineEvent")
 
 
 @asynccontextmanager
