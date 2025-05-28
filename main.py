@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from linebot.v3 import WebhookParser
 from linebot.v3.messaging import (
@@ -21,11 +22,9 @@ from linebot.v3.webhooks import (
     TextMessageContent,
 )
 
+from src.services.agent_service import call_agent_async  # 新しい関数
 from src.services.agent_service import (
     call_agent_with_image_async,
-)  # 新しい関数
-from src.services.agent_service import (
-    call_agent_async,
     cleanup_resources,
     init_agent,
 )
@@ -40,30 +39,59 @@ app = FastAPI()
 executor = ThreadPoolExecutor(max_workers=15, thread_name_prefix="LineEvent")
 
 
-# アプリケーション起動時にエージェントを初期化
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Initializing agent on application startup")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPIのlifespan管理（強化版）"""
+    # 起動時の処理
+    logger.info("🚀 Starting application initialization")
+
+    cleanup_tasks = []
+
     try:
+        # エージェントの初期化
+        logger.info("Initializing AI agent...")
         await init_agent()
-        logger.info("Agent initialization completed")
+        cleanup_tasks.append(cleanup_resources)
+        logger.info("✅ Agent initialization completed")
+
+        # その他の初期化処理があれば追加
+        # await init_database()
+        # cleanup_tasks.append(cleanup_database)
+
+        logger.info("🎉 Application startup completed successfully")
+
     except Exception as e:
-        logger.error(f"Failed to initialize agent: {e}")
+        logger.error(f"❌ Failed to initialize application: {e}")
+        # 部分的に初期化されたリソースをクリーンアップ
+        for cleanup_func in reversed(cleanup_tasks):
+            try:
+                await cleanup_func()
+            except Exception as cleanup_error:
+                logger.error(f"Error during startup cleanup: {cleanup_error}")
         raise
 
-
-# アプリケーション終了時にリソースをクリーンアップ
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Cleaning up resources on application shutdown")
     try:
-        await cleanup_resources()
-        logger.info("Agent resources cleanup completed")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+        yield  # アプリケーションが実行される
+    finally:
+        # 終了時の処理
+        logger.info("🛑 Starting application shutdown")
 
-    executor.shutdown(wait=True)
-    logger.info("Thread pool executor shutdown completed")
+        # すべてのクリーンアップタスクを実行
+        for cleanup_func in reversed(cleanup_tasks):
+            try:
+                logger.info(f"Running cleanup: {cleanup_func.__name__}")
+                await cleanup_func()
+            except Exception as e:
+                logger.error(f"Error during {cleanup_func.__name__}: {e}")
+
+        # スレッドプールの終了
+        try:
+            executor.shutdown(wait=True)
+            logger.info("✅ Thread pool executor shutdown completed")
+        except Exception as e:
+            logger.error(f"Error shutting down executor: {e}")
+
+        logger.info("🏁 Application shutdown completed")
 
 
 # CORS設定
