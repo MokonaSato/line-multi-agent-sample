@@ -304,6 +304,86 @@ def notion_create_page(
         }
 
 
+def notion_search_recipes_by_name(recipe_name: str) -> Dict[str, Any]:
+    """
+    レシピ名でレシピデータベースを検索する専用関数
+
+    Args:
+        recipe_name: 検索したいレシピ名
+
+    Returns:
+        検索結果のディクショナリ
+    """
+    # レシピデータベースのID
+    recipe_database_id = "1f79a940-1325-80d9-93c6-c33da454f18f"
+
+    # 名前（タイトル）フィールドで検索するフィルター条件
+    filter_conditions = {
+        "property": "名前",
+        "title": {"contains": recipe_name},
+    }
+
+    try:
+        return notion_query_database(
+            database_id=recipe_database_id,
+            filter_conditions=filter_conditions,
+            page_size=10,
+        )
+    except Exception as e:
+        # フィルター検索に失敗した場合、全件取得してPython側でフィルタリング
+        try:
+            all_recipes = notion_query_database(
+                database_id=recipe_database_id, page_size=100
+            )
+
+            # Python側でレシピ名フィルタリング
+            filtered_results = []
+            if all_recipes.get("success") and all_recipes.get("results"):
+                for recipe in all_recipes["results"]:
+                    title_property = recipe.get("properties", {}).get(
+                        "名前", {}
+                    )
+                    if title_property.get("type") == "title":
+                        title_parts = title_property.get("title", [])
+                        if title_parts:
+                            full_title = "".join(
+                                [
+                                    part.get("text", {}).get("content", "")
+                                    for part in title_parts
+                                ]
+                            )
+                            if recipe_name.lower() in full_title.lower():
+                                filtered_results.append(recipe)
+
+            return {
+                "success": True,
+                "results": filtered_results,
+                "has_more": False,
+                "next_cursor": None,
+                "total_count": len(filtered_results),
+                "note": "Filtered locally due to API filter error",
+            }
+        except Exception as fallback_error:
+            return {
+                "success": False,
+                "error": f"検索に失敗しました: {str(fallback_error)}",
+                "results": [],
+                "total_count": 0,
+            }
+
+
+def notion_get_all_recipes() -> Dict[str, Any]:
+    """
+    レシピデータベースからすべてのレシピを取得する関数
+
+    Returns:
+        全レシピの情報
+    """
+    recipe_database_id = "1f79a940-1325-80d9-93c6-c33da454f18f"
+
+    return notion_query_database(database_id=recipe_database_id, page_size=100)
+
+
 def notion_create_recipe_page(
     recipe_data: Dict[str, Any],
     database_id: str = "1f79a940-1325-80d9-93c6-c33da454f18f",
@@ -389,8 +469,15 @@ def notion_query_database(
     """
     data = {"page_size": min(max(page_size, 1), 100)}
 
+    # フィルター条件の検証と修正
     if filter_conditions:
-        data["filter"] = filter_conditions
+        # フィルター条件が空でないかチェック
+        if isinstance(filter_conditions, dict) and filter_conditions:
+            data["filter"] = filter_conditions
+        # 空のフィルター条件や不正な形式の場合は無視
+        else:
+            # フィルターなしでクエリ実行
+            pass
 
     if sorts:
         data["sorts"] = sorts
@@ -589,7 +676,7 @@ notion_tools_list = [
     notion_search,
     notion_get_page,
     notion_create_page,
-    notion_create_recipe_page,  # 追加：レシピ専用ページ作成
+    notion_create_recipe_page,
     notion_update_page,
     notion_query_database,
     notion_get_database,
@@ -598,4 +685,6 @@ notion_tools_list = [
     notion_append_block_children,
     notion_get_users,
     notion_create_comment,
+    notion_search_recipes_by_name,  # 新規追加
+    notion_get_all_recipes,  # 新規追加
 ]
