@@ -102,6 +102,8 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
 
     logging.info(f"Built properties: {list(properties.keys())}")
     logging.debug(f"Properties detail: {properties}")
+    # 一時的にプロパティの詳細をINFOレベルで出力（デバッグのため）
+    logging.info(f"詳細なプロパティ: {properties}")
 
     # ページ作成
     return pages.create(

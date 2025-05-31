@@ -82,6 +82,7 @@ def build_recipe_properties(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                     numeric_value = float(value)
                     # 有効な数値の場合のみプロパティを設定
                     if not (numeric_value != numeric_value):  # NaNチェック
+                        # Notion APIの要求に従い、数値プロパティを設定（単純な値ではなくオブジェクト）
                         properties[field_name] = {"number": numeric_value}
                 except (ValueError, TypeError):
                     # 変換に失敗した場合はプロパティを設定しない（空欄）

@@ -73,6 +73,8 @@ class NotionAPIClient:
                 )
                 # デバッグ用にリクエストデータを詳細ログに出力
                 logging.debug(f"完全なPOSTデータ: {data}")
+                # 一時的に詳細情報をINFOレベルで出力（デバッグのため）
+                logging.info(f"詳細なPOSTデータ: {data}")
                 response = requests.post(url, headers=self.headers, json=data)
             elif method == "PATCH":
                 logging.info(
