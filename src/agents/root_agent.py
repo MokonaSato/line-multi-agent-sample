@@ -15,7 +15,7 @@ from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools import agent_tool, google_search
 
 from src.agents.tools.calculator_tools import calculator_tools_list
-from src.agents.tools.notion_tools import notion_tools_list
+from src.agents.tools.notion import notion_tools_list
 from src.agents.tools.web_tools import fetch_web_content
 from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger

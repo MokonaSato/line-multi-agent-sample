@@ -2,8 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.agents.tools.notion_tools import (
-    NotionAPIClient,  # クラス自体もインポート
+from src.agents.tools.notion import (
     notion_create_page,
     notion_query_database,
     notion_search,
@@ -15,11 +14,24 @@ from src.agents.tools.notion_tools import (
 # モック用のクラスを作成
 class MockNotionClient:
     def __init__(self, *args, **kwargs):
-        pass
+        self.token = "fake-token"
+        self.version = "2022-06-28"
+        self.base_url = "https://api.notion.com/v1"
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Notion-Version": self.version,
+            "Content-Type": "application/json",
+        }
 
     def _make_request(self, method, endpoint, data=None):
         # このメソッドは各テストでオーバーライドします
-        pass
+        # デフォルトでは成功レスポンスを返す
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "{}"
+        mock_response.json.return_value = {}
+        mock_response.headers = {"Content-Type": "application/json"}
+        return {}
 
 
 @pytest.fixture(autouse=True)
@@ -35,12 +47,17 @@ def patch_requests():
 
 @pytest.fixture
 def mock_notion_client():
-    """NotionAPIClientクラスをモックして、実際のAPIリクエストを防ぐ"""
-    with patch(
-        "src.agents.tools.notion_tools.NotionAPIClient", MockNotionClient
-    ):
-        mock_instance = MagicMock()
-        yield mock_instance
+    """Notionクライアントのインスタンスをモックして、実際のAPIリクエストを防ぐ"""
+    # クライアントインスタンスをモック
+    with patch("src.agents.tools.notion.api.base.client", MockNotionClient()):
+        with patch(
+            "src.agents.tools.notion.api.pages.client", MockNotionClient()
+        ):
+            with patch(
+                "src.agents.tools.notion.api.databases.client",
+                MockNotionClient(),
+            ):
+                yield MockNotionClient()
 
 
 @pytest.mark.asyncio
@@ -65,9 +82,10 @@ async def test_search_notion(mock_notion_client):
         "next_cursor": None,
     }
 
-    # MockNotionClientの_make_requestをモック
-    with patch.object(
-        MockNotionClient, "_make_request", return_value=mock_results
+    # APIクライアントの_make_requestメソッドをモック
+    with patch(
+        "src.agents.tools.notion.api.base.client._make_request",
+        return_value=mock_results,
     ):
         result = notion_search("テスト")
 
@@ -82,9 +100,10 @@ async def test_create_notion_page():
     # モックのレスポンスをセットアップ
     mock_page = {"id": "new_page", "url": "https://notion.so/new_page"}
 
-    # MockNotionClientの_make_requestをモック
-    with patch.object(
-        MockNotionClient, "_make_request", return_value=mock_page
+    # APIクライアントの_make_requestメソッドをモック
+    with patch(
+        "src.agents.tools.notion.api.pages.client._make_request",
+        return_value=mock_page,
     ):
         result = notion_create_page("parent_page_uuid", "新規ページ")
 
@@ -99,9 +118,10 @@ async def test_update_notion_page():
     # モックのレスポンスをセットアップ
     mock_page = {"id": "page_uuid", "url": "https://notion.so/page_uuid"}
 
-    # MockNotionClientの_make_requestをモック
-    with patch.object(
-        MockNotionClient, "_make_request", return_value=mock_page
+    # APIクライアントの_make_requestメソッドをモック
+    with patch(
+        "src.agents.tools.notion.api.pages.client._make_request",
+        return_value=mock_page,
     ):
         result = notion_update_page(
             "page_uuid", {"title": "更新されたタイトル"}
@@ -109,8 +129,10 @@ async def test_update_notion_page():
 
     # 結果の構造を確認
     assert "page_id" in result
-    assert "url" in result
-    assert result["title"] == "更新されたタイトル"
+    assert "page" in result
+    assert "success" in result
+    assert result["page_id"] == "page_uuid"
+    assert result["page"]["url"] == "https://notion.so/page_uuid"
 
 
 @pytest.mark.asyncio
@@ -137,11 +159,12 @@ async def test_query_notion_database():
         "next_cursor": None,
     }
 
-    # MockNotionClientの_make_requestをモック
-    with patch.object(
-        MockNotionClient, "_make_request", return_value=mock_db_content
+    # APIクライアントの_make_requestメソッドをモック
+    with patch(
+        "src.agents.tools.notion.api.databases.client._make_request",
+        return_value=mock_db_content,
     ):
-        result = await notion_query_database("database_uuid")
+        result = notion_query_database("database_uuid")
 
     # 結果の構造を確認
     assert "results" in result
@@ -152,11 +175,18 @@ def test_notion_tools_list():
     # ツールリストがリストであることを確認
     assert isinstance(notion_tools_list, list)
 
-    # 各ツールの関数名を取得
-    tool_names = [tool.__name__ for tool in notion_tools_list]
+    # モジュールパスとメソッド名の組み合わせで必要な機能を確認
+    modules_and_names = [
+        (tool.__module__, tool.__name__) for tool in notion_tools_list
+    ]
 
-    # 必要なツールが含まれているか確認
-    assert "notion_search" in tool_names
-    assert "notion_create_page" in tool_names
-    assert "notion_update_page" in tool_names
-    assert "notion_query_database" in tool_names
+    # 必要なツール関数が存在するか確認
+    assert len(notion_tools_list) >= 10, "ツールリストが短すぎます"
+
+    # 必要な機能があることを確認
+    assert ("src.agents.tools.notion.api.base", "search") in modules_and_names
+    assert ("src.agents.tools.notion.api.pages", "create") in modules_and_names
+    assert (
+        "src.agents.tools.notion.api.databases",
+        "query",
+    ) in modules_and_names
