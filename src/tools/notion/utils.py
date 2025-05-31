@@ -66,16 +66,15 @@ def build_recipe_properties(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
         if field_name in recipe_data:
             value = recipe_data[field_name]
 
-            # null値、"null"文字列、空文字列の場合はプロパティ自体を設定しない
-            # （Notionでは設定しないことで空欄になる）
+            # null値、"null"文字列、空文字列の場合はnullオブジェクトとして設定
             if (
                 value is None
                 or value == "null"
                 or str(value).lower() == "null"
                 or value == ""
             ):
-                # 空欄にするためプロパティを設定しない
-                continue
+                # Notion APIの要求に従い、nullの場合もオブジェクト形式で設定
+                properties[field_name] = {"number": None}
             else:
                 # 数値に変換、失敗した場合もプロパティを設定しない
                 try:
@@ -85,8 +84,8 @@ def build_recipe_properties(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                         # Notion APIの要求に従い、数値プロパティを設定（単純な値ではなくオブジェクト）
                         properties[field_name] = {"number": numeric_value}
                 except (ValueError, TypeError):
-                    # 変換に失敗した場合はプロパティを設定しない（空欄）
-                    continue
+                    # 変換に失敗した場合はnullオブジェクトとして設定
+                    properties[field_name] = {"number": None}
 
     # URLプロパティ
     if "URL" in recipe_data and recipe_data["URL"]:
