@@ -1,0 +1,33 @@
+name: root_agent
+description: "ユーザーと対話する中心的なエージェント"
+version: 1.0.0
+model: gemini-2.5-flash
+variables:
+  agent_name: ルートエージェント
+  agent_description: "ユーザーと対話する中心的なエージェント。ユーザーの意図を理解し、適切なサブエージェントに委譲するか、自分の持つツールを使用して直接対応すること"
+  basic_principles: |
+    - ユーザーの質問や指示を慎重に分析してください
+    - 画像が含まれている場合は、画像の内容も考慮して適切な処理を決定してください
+    - 要求に最も適したツールまたはサブエージェントを選択してください
+    - 明確で簡潔な応答を提供してください
+    - 分からないことがあれば正直に認めてください
+  request_examples: |
+    - 計算を含む数学的な質問
+    - Notionデータベースへのアクセスとその操作
+    - レシピサイトのURLから情報を抽出してNotionに保存
+    - 画像からレシピを抽出してNotionに保存
+    - 画像の分析と内容の説明
+    - 一般的な情報検索
+  available_tools: |
+    - **Google Search**: 一般的な情報検索や最新の情報が必要な質問には、Google検索ツールを使用してください。
+prompts:
+  - system: core/system.txt
+  - main: agents/root/main.txt
+  - error_handling: core/error_handling.txt
+  - formatting: core/formatting.txt
+dependencies:
+  - agents/calculator
+  - agents/vision
+  - agents/notion
+  - workflows/recipe/url_extraction
+  - workflows/recipe/image_extraction

@@ -29,7 +29,96 @@ _exit_stack = AsyncExitStack()
 
 
 def _load_all_prompts() -> Dict[str, str]:
-    """すべてのプロンプトファイルを一括で読み込む"""
+    """すべてのプロンプトファイルを一括で読み込む
+
+    既存のプロンプト構造との互換性を保ちながら、新しいプロンプト管理システムも使用できるようにする
+    """
+    from src.utils.prompt_manager import PromptManager
+
+    # 新しいプロンプト管理システムを初期化
+    try:
+        manager = PromptManager()
+
+        # 既存のキーと新しいパスのマッピング
+        prompt_mapping = {
+            "recipe_extraction": "workflows.recipe.url_extraction.extraction",
+            "data_transformation": "workflows.recipe.url_extraction.transformation",
+            "recipe_notion": "workflows.recipe.url_extraction.notion",
+            "recipe_workflow": "workflows.recipe.url_extraction.workflow",
+            "image_analysis": "workflows.recipe.image_extraction.analysis",
+            "image_data_enhancement": "workflows.recipe.image_extraction.enhancement",
+            "image_notion": "workflows.recipe.image_extraction.notion",
+            "image_workflow": "workflows.recipe.image_extraction.workflow",
+            "calculator": "agents.calculator.main",
+            "notion": "agents.notion.main",
+            "root": "agents.root.main",
+            "vision": "agents.vision.main",
+        }
+
+        # 一旦従来の方法をフォールバックとして残す
+        prompts = {}
+
+        # 新しいシステムからプロンプトを取得
+        for key, prompt_path in prompt_mapping.items():
+            try:
+                prompts[key] = manager.get_prompt(prompt_path)
+                logger.info(
+                    f"新しい管理システムから '{key}' プロンプトを読み込みました"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"新システムからの '{key}' プロンプト読み込みに失敗: {e}"
+                )
+                # 従来の方法で読み込む
+                old_style_load(prompts, key)
+
+        return prompts
+
+    except Exception as e:
+        logger.error(f"新しいプロンプト管理システムの初期化に失敗: {e}")
+        logger.info("従来のプロンプト読み込み方法にフォールバック")
+        return _load_prompts_legacy()
+
+
+def old_style_load(prompts_dict: Dict[str, str], key: str) -> None:
+    """従来の方法でプロンプトを読み込む（フォールバック用）"""
+    prompt_files = {
+        "recipe_extraction": "url_recipe_workflow/content_extraction.txt",
+        "data_transformation": "url_recipe_workflow/data_transformation.txt",
+        "recipe_notion": "url_recipe_workflow/notion.txt",
+        "recipe_workflow": "url_recipe_workflow/recipe_workflow.txt",
+        "image_analysis": "image_recipe_workflow/image_analysis.txt",
+        "image_data_enhancement": "image_recipe_workflow/image_data_enhancement.txt",
+        "image_notion": "image_recipe_workflow/notion.txt",
+        "image_workflow": "image_recipe_workflow/image_workflow.txt",
+        "calculator": "calculator.txt",
+        "notion": "notion.txt",
+        "root": "root.txt",
+        "vision": "vision.txt",
+    }
+
+    if key in prompt_files:
+        prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
+        file_path = os.path.join(prompts_dir, prompt_files[key])
+        try:
+            prompts_dict[key] = read_prompt_file(file_path)
+            logger.info(f"従来の方法で '{key}' プロンプトを読み込みました")
+        except Exception as e:
+            logger.error(
+                f"プロンプトファイル '{prompt_files[key]}' の読み込みに失敗: {e}"
+            )
+            if key == "vision":
+                prompts_dict[
+                    key
+                ] = """あなたは画像を分析する専門家です。
+提供された画像の内容を詳細に説明し、関連情報を抽出してください。
+画像のタイプ（料理、製品、文書など）を特定し、適切な情報を抽出してください。"""
+            else:
+                prompts_dict[key] = f"Error loading prompt: {str(e)}"
+
+
+def _load_prompts_legacy() -> Dict[str, str]:
+    """従来の方法ですべてのプロンプトファイルを一括で読み込む（フォールバック用）"""
     prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
     prompt_files = {
         "recipe_extraction": "url_recipe_workflow/content_extraction.txt",
@@ -37,15 +126,13 @@ def _load_all_prompts() -> Dict[str, str]:
         "recipe_notion": "url_recipe_workflow/notion.txt",
         "recipe_workflow": "url_recipe_workflow/recipe_workflow.txt",
         "image_analysis": "image_recipe_workflow/image_analysis.txt",
-        "image_data_enhancement": (
-            "image_recipe_workflow/image_data_enhancement.txt"
-        ),
+        "image_data_enhancement": "image_recipe_workflow/image_data_enhancement.txt",
         "image_notion": "image_recipe_workflow/notion.txt",
         "image_workflow": "image_recipe_workflow/image_workflow.txt",
         "calculator": "calculator.txt",
         "notion": "notion.txt",
         "root": "root.txt",
-        "vision": "vision.txt",  # 追加
+        "vision": "vision.txt",
     }
 
     prompts = {}
@@ -57,7 +144,6 @@ def _load_all_prompts() -> Dict[str, str]:
             logger.error(
                 f"プロンプトファイル '{filename}' の読み込みに失敗: {e}"
             )
-            # vision.txtが存在しない場合は基本的なプロンプトを提供
             if key == "vision":
                 prompts[
                     key

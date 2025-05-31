@@ -1,0 +1,15 @@
+version: 1.0.0
+description: "プロンプト管理システム設定ファイル"
+default_lang: "ja"
+agents:
+  - root
+  - calculator
+  - vision
+  - notion
+workflows:
+  - recipe.url_extraction
+  - recipe.image_extraction
+# グローバル設定値
+global_variables:
+  company_name: "AIサービス"
+  support_email: "support@example.com"
