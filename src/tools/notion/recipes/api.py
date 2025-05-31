@@ -10,6 +10,49 @@ from src.tools.notion.constants import RECIPE_DATABASE_ID
 from src.tools.notion.utils import build_recipe_properties
 
 
+def validate_and_fix_recipe_data(
+    recipe_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    レシピデータを検証し、必要に応じて修正または補完する
+
+    Args:
+        recipe_data: 元のレシピデータ
+
+    Returns:
+        検証・修正済みのレシピデータ
+    """
+    validated = {}
+
+    # 必須フィールドの検証と補完
+    validated["名前"] = recipe_data.get("名前") or "無題のレシピ"
+    validated["材料"] = recipe_data.get("材料") or "材料情報なし"
+    validated["手順"] = recipe_data.get("手順") or "手順情報なし"
+
+    # 数値フィールドの検証
+    for field in ["人数", "調理時間", "保存期間"]:
+        value = recipe_data.get(field)
+        try:
+            if value is not None and value != "":
+                # 数値変換を試みる
+                num_value = float(value)
+                validated[field] = num_value
+            else:
+                validated[field] = None
+        except (ValueError, TypeError):
+            # 数値変換に失敗した場合はNoneを設定
+            validated[field] = None
+
+    # URL
+    validated["URL"] = recipe_data.get("URL", "")
+
+    logging.info(
+        f"レシピデータ検証結果: 必須項目={validated['名前'] != '無題のレシピ' and validated['材料'] != '材料情報なし' and validated['手順'] != '手順情報なし'}"
+    )
+
+    return validated
+
+
 def search_by_name(recipe_name: str) -> Dict[str, Any]:
     """
     レシピ名でレシピデータベースを検索する専用関数
@@ -95,7 +138,17 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         作成されたページの情報
     """
-    logging.info(f"Creating recipe page with data: {list(recipe_data.keys())}")
+    # 入力データの詳細ログ
+    logging.info(
+        f"Creating recipe page with data keys: {list(recipe_data.keys())}"
+    )
+    # 必須フィールドの存在をログ出力
+    required_fields = ["名前", "材料", "手順"]
+    for field in required_fields:
+        if field not in recipe_data or not recipe_data[field]:
+            logging.warning(f"必須フィールド '{field}' が不足しているか空です")
+        else:
+            logging.info(f"'{field}' フィールド: {recipe_data[field][:30]}...")
 
     try:
         # APIトークンの存在確認
@@ -124,42 +177,55 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                 "error_type": "database_id_missing",
             }
 
+        # 受け取ったデータの検証と補完
+        validated_data = validate_and_fix_recipe_data(recipe_data)
+        logging.info(f"検証済みレシピデータ: {list(validated_data.keys())}")
+
         # レシピデータからプロパティを構築
-        properties = build_recipe_properties(recipe_data)
+        properties = build_recipe_properties(validated_data)
 
         logging.info(f"Built properties: {list(properties.keys())}")
         logging.debug(f"Properties detail: {properties}")
         # 一時的にプロパティの詳細をINFOレベルで出力（デバッグのため）
         logging.info(f"詳細なプロパティ: {properties}")
 
-        # 必須フィールドの検証
-        if "名前" not in properties or not properties["名前"]["title"]:
-            error_message = "レシピ名が設定されていません"
-            logging.error(error_message)
-            return {
-                "success": False,
-                "error": error_message,
-                "page_id": None,
-                "url": None,
-                "error_type": "validation_error",
+        # 必須フィールドの最終検証
+        if "名前" not in properties or not properties.get("名前", {}).get(
+            "title"
+        ):
+            # エラーの場合、デフォルトタイトルを設定する
+            logging.warning(
+                "レシピ名が設定されていないため、デフォルト値を使用します"
+            )
+            properties["名前"] = {
+                "title": [{"text": {"content": "無題のレシピ"}}]
             }
 
-        # 必須パラメータの事前検証 (parent_id, title, properties)
-        if not recipe_data.get("名前"):
-            error_message = "レシピ名(title)が設定されていません"
-            logging.error(error_message)
-            return {
-                "success": False,
-                "error": error_message,
-                "page_id": None,
-                "url": None,
-                "error_type": "missing_parameter",
-            }
+        # 必須プロパティが存在することを確認
+        required_props = ["材料", "手順"]
+        for prop in required_props:
+            if prop not in properties:
+                logging.warning(
+                    f"{prop}が設定されていないため、デフォルト値を使用します"
+                )
+                properties[prop] = {
+                    "rich_text": [{"text": {"content": f"{prop}情報なし"}}]
+                }
+
+        # ページ作成前の最終準備
+        final_title = validated_data.get("名前", "無題のレシピ")
+        if not final_title or final_title == "無題のレシピ":
+            logging.warning("タイトルが未設定なので、デフォルト値を使用します")
+            final_title = "無題のレシピ"
+
+        logging.info(
+            f"送信データ: parent_id={RECIPE_DATABASE_ID}, title={final_title}, properties={list(properties.keys())}"
+        )
 
         # ページ作成
         result = pages.create(
             parent_id=RECIPE_DATABASE_ID,
-            title=recipe_data.get("名前", "新しいレシピ"),
+            title=final_title,
             parent_type="database",
             properties=properties,
         )
@@ -169,18 +235,26 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
             error_message = result.get("error", "不明なエラー")
             logging.error(f"Notion APIエラー: {error_message}")
 
-            # エラータイプの特定
-            error_type = "api_error"
+            # エラータイプの特定とロギング
+            error_type = result.get("error_type", "api_error")
 
-            # パラメータ不足エラーの検出
+            # より詳細なデバッグ情報
+            logging.error(
+                f"エラー詳細: type={error_type}, message={error_message}"
+            )
+            logging.error(
+                f"使用されたパラメータ: title={final_title}, database_id={RECIPE_DATABASE_ID}, properties_keys={list(properties.keys())}"
+            )
+
+            # 特定のエラーケースへの対応
             if "missing required parameters" in error_message.lower():
                 error_type = "missing_parameter"
                 error_message = (
-                    f"{error_message} - 必須パラメータが不足しています。"
-                    f"APIリクエストを確認してください"
+                    f"{error_message} - Notion API必須パラメータ(parent_id, "
+                    f"title, properties)が不足しています"
                 )
 
-            # トークン関連のエラーメッセージをより明確に
+            # トークン関連のエラー
             elif (
                 "API Token" in error_message
                 or "token" in error_message.lower()
@@ -190,7 +264,13 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 error_type = "token_error"
 
+            # エラー情報を結果に追加
             result["error_type"] = error_type
+            result["error_details"] = {
+                "used_title": final_title,
+                "used_database_id": RECIPE_DATABASE_ID,
+                "properties_keys": list(properties.keys()),
+            }
             return result
 
         logging.info(
