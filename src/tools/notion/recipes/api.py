@@ -15,6 +15,7 @@ def validate_and_fix_recipe_data(
 ) -> Dict[str, Any]:
     """
     レシピデータを検証し、必要に応じて修正または補完する
+    missing required parametersエラーを防ぐため、必須フィールドを確実に設定
 
     Args:
         recipe_data: 元のレシピデータ
@@ -24,33 +25,77 @@ def validate_and_fix_recipe_data(
     """
     validated = {}
 
-    # 必須フィールドの検証と補完
-    validated["名前"] = recipe_data.get("名前") or "無題のレシピ"
-    validated["材料"] = recipe_data.get("材料") or "材料情報なし"
-    validated["手順"] = recipe_data.get("手順") or "手順情報なし"
+    # 必須フィールドの厳格な検証と補完
+    # 空文字列、None、undefined の場合は必ずデフォルト値を設定
+    name = recipe_data.get("名前")
+    if not name or str(name).strip() == "" or str(name).lower() == "null":
+        validated["名前"] = "無題のレシピ"
+        logging.warning(
+            "レシピ名が未設定のため、デフォルト値を設定: 無題のレシピ"
+        )
+    else:
+        validated["名前"] = str(name).strip()
 
-    # 数値フィールドの検証
+    ingredients = recipe_data.get("材料")
+    if (
+        not ingredients
+        or str(ingredients).strip() == ""
+        or str(ingredients).lower() == "null"
+    ):
+        validated["材料"] = "材料情報なし"
+        logging.warning("材料が未設定のため、デフォルト値を設定: 材料情報なし")
+    else:
+        validated["材料"] = str(ingredients).strip()
+
+    instructions = recipe_data.get("手順")
+    if (
+        not instructions
+        or str(instructions).strip() == ""
+        or str(instructions).lower() == "null"
+    ):
+        validated["手順"] = "手順情報なし"
+        logging.warning("手順が未設定のため、デフォルト値を設定: 手順情報なし")
+    else:
+        validated["手順"] = str(instructions).strip()
+
+    # 数値フィールドの厳格な検証
     for field in ["人数", "調理時間", "保存期間"]:
         value = recipe_data.get(field)
         try:
-            if value is not None and value != "":
+            if (
+                value is not None
+                and str(value).strip() != ""
+                and str(value).lower() != "null"
+            ):
                 # 数値変換を試みる
                 num_value = float(value)
-                validated[field] = num_value
+                # NaN（Not a Number）をチェック
+                if num_value != num_value:  # NaNチェック
+                    validated[field] = None
+                    logging.warning(f"{field}がNaNのため、Noneを設定")
+                else:
+                    validated[field] = num_value
+                    logging.info(f"{field}を数値として設定: {num_value}")
             else:
                 validated[field] = None
-        except (ValueError, TypeError):
+                logging.info(f"{field}が空のため、Noneを設定")
+        except (ValueError, TypeError) as e:
             # 数値変換に失敗した場合はNoneを設定
             validated[field] = None
+            logging.warning(
+                f"{field}の数値変換に失敗({value})、Noneを設定: {e}"
+            )
 
-    # URL
-    validated["URL"] = recipe_data.get("URL", "")
+    # URL フィールド
+    url = recipe_data.get("URL", "")
+    validated["URL"] = str(url) if url is not None else ""
 
+    # 検証結果をログ出力
     logging.info(
-        (
-            "レシピデータ検証結果: 必須項目="
-            f"{validated['名前'] != '無題のレシピ' and validated['材料'] != '材料情報なし' and validated['手順'] != '手順情報なし'}"
-        )
+        f"レシピデータ検証完了: 名前='{validated['名前']}', "
+        f"材料長={len(validated['材料'])}, 手順長={len(validated['手順'])}, "
+        f"人数={validated['人数']}, 調理時間={validated['調理時間']}, "
+        f"保存期間={validated['保存期間']}"
     )
 
     return validated
@@ -134,6 +179,7 @@ def get_all() -> Dict[str, Any]:
 def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     レシピデータベース専用のページ作成関数
+    missing required parametersエラーを防ぐため、厳格なパラメータ検証を実施
 
     Args:
         recipe_data: レシピデータ（名前、材料、手順、etc.）
@@ -145,13 +191,16 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     logging.info(
         f"Creating recipe page with data keys: {list(recipe_data.keys())}"
     )
+
     # 必須フィールドの存在をログ出力
     required_fields = ["名前", "材料", "手順"]
     for field in required_fields:
         if field not in recipe_data or not recipe_data[field]:
             logging.warning(f"必須フィールド '{field}' が不足しているか空です")
         else:
-            logging.info(f"'{field}' フィールド: {recipe_data[field][:30]}...")
+            logging.info(
+                f"'{field}' フィールド: {str(recipe_data[field])[:30]}..."
+            )
 
     try:
         # APIトークンの存在確認
@@ -180,7 +229,7 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                 "error_type": "database_id_missing",
             }
 
-        # 受け取ったデータの検証と補完
+        # 受け取ったデータの厳格な検証と補完
         validated_data = validate_and_fix_recipe_data(recipe_data)
         logging.info(f"検証済みレシピデータ: {list(validated_data.keys())}")
 
@@ -192,7 +241,7 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
         # 一時的にプロパティの詳細をINFOレベルで出力（デバッグのため）
         logging.info(f"詳細なプロパティ: {properties}")
 
-        # 必須フィールドの最終検証
+        # 必須フィールドの最終検証（missing required parametersエラー防止）
         if "名前" not in properties or not properties.get("名前", {}).get(
             "title"
         ):
@@ -215,22 +264,50 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                     "rich_text": [{"text": {"content": f"{prop}情報なし"}}]
                 }
 
-        # ページ作成前の最終準備
+        # ページ作成前の最終準備と検証
         final_title = validated_data.get("名前", "無題のレシピ")
         if not final_title or final_title == "無題のレシピ":
             logging.warning("タイトルが未設定なので、デフォルト値を使用します")
             final_title = "無題のレシピ"
 
+        # missing required parametersエラーを防ぐための最終チェック
+        if not RECIPE_DATABASE_ID:
+            return {
+                "success": False,
+                "error": "parent_id (データベースID) が設定されていません",
+                "error_type": "missing_parameter",
+                "page_id": None,
+                "url": None,
+            }
+
+        if not final_title:
+            return {
+                "success": False,
+                "error": "title (レシピ名) が設定されていません",
+                "error_type": "missing_parameter",
+                "page_id": None,
+                "url": None,
+            }
+
+        if not properties:
+            return {
+                "success": False,
+                "error": "properties (レシピプロパティ) が設定されていません",
+                "error_type": "missing_parameter",
+                "page_id": None,
+                "url": None,
+            }
+
         logging.info(
             f"送信データ: parent_id={RECIPE_DATABASE_ID}, title={final_title}, properties={list(properties.keys())}"
         )
 
-        # ページ作成
+        # ページ作成 - 必須パラメータを明示的に設定
         result = pages.create(
-            parent_id=RECIPE_DATABASE_ID,
-            title=final_title,
+            parent_id=RECIPE_DATABASE_ID,  # 必須パラメータ1
+            title=final_title,  # 必須パラメータ2
             parent_type="database",
-            properties=properties,
+            properties=properties,  # 必須パラメータ3
         )
 
         # レスポンスの検証
@@ -279,7 +356,7 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                 or "token" in error_message.lower()
             ):
                 error_message = (
-                    f"{error_message} - 環境変数NOTIONTOKENを確認してください"
+                    f"{error_message} - 環境変数NOTION_TOKENを確認してください"
                 )
                 error_type = "token_error"
 
