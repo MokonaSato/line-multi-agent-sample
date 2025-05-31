@@ -121,6 +121,18 @@ notion_create_recipe_page(
 - [代替手順の提案]
 
 お手数ですが、[具体的な対処法]をお試しいただくか、別の画像でもう一度お試しください。
+
+⚠️ **注意**
+APIの呼び出し結果をしっかり確認してください。特に success フィールドが false の場合は必ずエラー応答を返してください。
+Notion API Tokenが設定されていない場合は、その旨を明確にユーザーに伝えてください。
+
+💥 **エラー種類別の対応**
+- token_missing: Notion APIトークンが未設定です。環境変数NOTIONTOKENを設定してください。
+- token_error: Notion APIトークンが無効です。正しいトークンを設定してください。
+- validation_error: レシピデータの形式に問題があります。必須項目を確認してください。
+- missing_parameter: APIに渡すパラメータが不足しています。必須パラメータ(parent_id, title, properties)を確認してください。
+- api_error: Notion APIからエラーが返されました。
+- unknown_error: 不明なエラーが発生しました。
 ```
 
 ## データ形式の扱い

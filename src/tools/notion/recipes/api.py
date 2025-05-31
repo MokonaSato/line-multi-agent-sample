@@ -97,18 +97,130 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     logging.info(f"Creating recipe page with data: {list(recipe_data.keys())}")
 
-    # レシピデータからプロパティを構築
-    properties = build_recipe_properties(recipe_data)
+    try:
+        # APIトークンの存在確認
+        from config import NOTION_TOKEN
 
-    logging.info(f"Built properties: {list(properties.keys())}")
-    logging.debug(f"Properties detail: {properties}")
-    # 一時的にプロパティの詳細をINFOレベルで出力（デバッグのため）
-    logging.info(f"詳細なプロパティ: {properties}")
+        if not NOTION_TOKEN:
+            error_message = "NOTION_TOKEN が設定されていません。環境変数を確認してください。"
+            logging.error(error_message)
+            return {
+                "success": False,
+                "error": "Notion API トークンが設定されていません。環境変数 NOTION_TOKEN を確認してください。",
+                "page_id": None,
+                "url": None,
+                "error_type": "token_missing",
+            }
 
-    # ページ作成
-    return pages.create(
-        parent_id=RECIPE_DATABASE_ID,
-        title=recipe_data.get("名前", "新しいレシピ"),
-        parent_type="database",
-        properties=properties,
-    )
+        # データベースIDの確認
+        if not RECIPE_DATABASE_ID:
+            error_message = "レシピデータベースIDが設定されていません"
+            logging.error(error_message)
+            return {
+                "success": False,
+                "error": error_message,
+                "page_id": None,
+                "url": None,
+                "error_type": "database_id_missing",
+            }
+
+        # レシピデータからプロパティを構築
+        properties = build_recipe_properties(recipe_data)
+
+        logging.info(f"Built properties: {list(properties.keys())}")
+        logging.debug(f"Properties detail: {properties}")
+        # 一時的にプロパティの詳細をINFOレベルで出力（デバッグのため）
+        logging.info(f"詳細なプロパティ: {properties}")
+
+        # 必須フィールドの検証
+        if "名前" not in properties or not properties["名前"]["title"]:
+            error_message = "レシピ名が設定されていません"
+            logging.error(error_message)
+            return {
+                "success": False,
+                "error": error_message,
+                "page_id": None,
+                "url": None,
+                "error_type": "validation_error",
+            }
+
+        # 必須パラメータの事前検証 (parent_id, title, properties)
+        if not recipe_data.get("名前"):
+            error_message = "レシピ名(title)が設定されていません"
+            logging.error(error_message)
+            return {
+                "success": False,
+                "error": error_message,
+                "page_id": None,
+                "url": None,
+                "error_type": "missing_parameter",
+            }
+
+        # ページ作成
+        result = pages.create(
+            parent_id=RECIPE_DATABASE_ID,
+            title=recipe_data.get("名前", "新しいレシピ"),
+            parent_type="database",
+            properties=properties,
+        )
+
+        # レスポンスの検証
+        if not result.get("success", False):
+            error_message = result.get("error", "不明なエラー")
+            logging.error(f"Notion APIエラー: {error_message}")
+
+            # エラータイプの特定
+            error_type = "api_error"
+
+            # パラメータ不足エラーの検出
+            if "missing required parameters" in error_message.lower():
+                error_type = "missing_parameter"
+                error_message = (
+                    f"{error_message} - 必須パラメータが不足しています。"
+                    f"APIリクエストを確認してください"
+                )
+
+            # トークン関連のエラーメッセージをより明確に
+            elif (
+                "API Token" in error_message
+                or "token" in error_message.lower()
+            ):
+                error_message = (
+                    f"{error_message} - 環境変数NOTIONTOKENを確認してください"
+                )
+                error_type = "token_error"
+
+            result["error_type"] = error_type
+            return result
+
+        logging.info(
+            f"レシピ'{recipe_data.get('名前')}' が正常に登録されました。"
+            f"ID: {result.get('page_id')}"
+        )
+        return result
+
+    except Exception as e:
+        error_message = f"レシピ登録中に例外が発生しました: {e}"
+        logging.exception(error_message)
+
+        # エラータイプを特定してメッセージを追加する
+        error_type = "unknown_error"
+        if "token" in str(e).lower() or "authorization" in str(e).lower():
+            error_type = "token_error"
+            error_message = (
+                f"{error_message} - Notion APIトークンを確認してください"
+            )
+        elif "missing required parameters" in str(e).lower():
+            error_type = "missing_parameter"
+            error_message = (
+                f"{error_message} - 必須パラメータ(parent_id, title, properties)"
+                f"が不足しています"
+            )
+
+        return {
+            "success": False,
+            "error": error_message,
+            "page_id": None,
+            "url": None,
+            "error_type": error_type,
+        }

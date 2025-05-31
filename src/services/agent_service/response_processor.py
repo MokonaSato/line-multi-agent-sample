@@ -63,14 +63,35 @@ class ResponseProcessor:
         Returns:
             最終応答であればTrue、そうでなければFalse
         """
+        # Notion APIトークンエラーの特別なケース (優先度高)
+        notion_token_error = (
+            "Notion API トークンが設定されていません" in response
+            or "NOTION_TOKEN が設定されていません" in response
+        )
+        if notion_token_error:
+            logger.warning("Notion API token error detected in response")
+            return True
+
+        # APIエラーメッセージの特別検出 (優先度高)
+        api_error = (
+            "APIエラー" in response
+            or "API Error" in response
+            or "❌ レシピ登録エラー" in response
+        )
+        if api_error:
+            logger.warning("API error detected in response")
+            return True
+
         # 明確な完了メッセージが含まれている場合
         for indicator in COMPLETION_INDICATORS:
             if indicator in response:
+                logger.info(f"Completion indicator found: {indicator}")
                 return True
 
         # エラーメッセージの場合も最終応答として扱う
         for indicator in ERROR_INDICATORS:
             if indicator in response:
+                logger.warning(f"Error indicator found: {indicator}")
                 return True
 
         # Sequential Agentで複数ステップが実行された後の応答
@@ -78,10 +99,25 @@ class ResponseProcessor:
         min_length = AGENT_CONFIG["min_final_response_length"]
 
         if step_count >= min_steps and len(response) > min_length:
+            logger.info(
+                f"Sequential agent completion after {step_count} steps"
+            )
             return True
 
         # root_agentからの応答で、十分な長さがある場合
         if author == "root_agent" and len(response) > min_length:
+            logger.info(
+                "Final response from root_agent with sufficient length"
+            )
+            return True
+
+        # JSONレスポンスで、successフィールドがfalseの場合（APIエラーケース）
+        json_error = (
+            '"success": false' in response.lower()
+            or '"success":false' in response.lower()
+        )
+        if json_error:
+            logger.warning("API response with success:false detected")
             return True
 
         return False

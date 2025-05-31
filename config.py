@@ -14,4 +14,7 @@ if not GOOGLE_API_KEY:
     print("Warning: GOOGLE_API_KEY environment variable is not set")
 
 if not NOTION_TOKEN:
-    print("Warning: NOTION_TOKEN environment variable is not set")
+    print("ERROR: NOTION_TOKEN environment variable is not set")
+    print("Notion機能が正常に動作しません。")
+    print(".env ファイルに以下の形式でNOTION_TOKENを設定してください:")
+    print("NOTION_TOKEN=secret_xxxxxxxxxxxxxxxxxxxx")
