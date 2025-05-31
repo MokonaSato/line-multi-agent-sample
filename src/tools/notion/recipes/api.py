@@ -176,10 +176,12 @@ def get_all() -> Dict[str, Any]:
     return databases.query(database_id=RECIPE_DATABASE_ID, page_size=100)
 
 
-def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
+def notion_create_recipe_page(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    レシピデータベース専用のページ作成関数
+    レシピ専用のページ作成関数
     missing required parametersエラーを防ぐため、厳格なパラメータ検証を実施
+
+    **重要**: この関数は notion_create_recipe_page として直接呼び出される
 
     Args:
         recipe_data: レシピデータ（名前、材料、手順、etc.）
@@ -189,7 +191,7 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     # 入力データの詳細ログ
     logging.info(
-        f"Creating recipe page with data keys: {list(recipe_data.keys())}"
+        f"notion_create_recipe_page called with data keys: {list(recipe_data.keys())}"
     )
 
     # 必須フィールドの存在をログ出力
@@ -238,8 +240,6 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
 
         logging.info(f"Built properties: {list(properties.keys())}")
         logging.debug(f"Properties detail: {properties}")
-        # 一時的にプロパティの詳細をINFOレベルで出力（デバッグのため）
-        logging.info(f"詳細なプロパティ: {properties}")
 
         # 必須フィールドの最終検証（missing required parametersエラー防止）
         if "名前" not in properties or not properties.get("名前", {}).get(
@@ -400,3 +400,7 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
             "url": None,
             "error_type": error_type,
         }
+
+
+# 後方互換性のためのエイリアス
+create = notion_create_recipe_page

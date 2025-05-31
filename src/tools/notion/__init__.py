@@ -21,9 +21,7 @@ from src.tools.notion.api import (
 )
 from src.tools.notion.recipes import create as create_recipe
 from src.tools.notion.recipes import get_all as get_all_recipes
-from src.tools.notion.recipes import (
-    search_by_name as search_recipes_by_name,
-)
+from src.tools.notion.recipes import search_by_name as search_recipes_by_name
 
 # 後方互換性のための関数エイリアス
 notion_search = search
@@ -38,17 +36,21 @@ notion_append_block_children = append_block_children
 notion_get_users = get_users
 notion_create_comment = create_comment
 
-# レシピ関連
+# レシピ関連 - エラー防止のため専用関数を明確に定義
 notion_create_recipe_page = create_recipe
 notion_search_recipes_by_name = search_recipes_by_name
 notion_get_all_recipes = get_all_recipes
 
-# ツール関数のマッピング（ADK用）
+# ADK用ツール関数のマッピング - notion_create_recipe_pageを優先配置
 notion_tools_list = [
+    # レシピ専用ツール（優先）
+    notion_create_recipe_page,
+    notion_search_recipes_by_name,
+    notion_get_all_recipes,
+    # 汎用ツール
     notion_search,
     notion_get_page,
     notion_create_page,
-    notion_create_recipe_page,
     notion_update_page,
     notion_query_database,
     notion_get_database,
@@ -57,8 +59,6 @@ notion_tools_list = [
     notion_append_block_children,
     notion_get_users,
     notion_create_comment,
-    notion_search_recipes_by_name,
-    notion_get_all_recipes,
 ]
 
 # カテゴリー別ツールマッピング（今後の拡張用）
