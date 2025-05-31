@@ -163,7 +163,9 @@ def create(
         # エラーメッセージからエラーの種類を特定
         if "missing required parameters" in error_msg.lower():
             error_type = "missing_parameter"
-            error_msg = f"{error_msg} - 必要なパラメータ (parent_id, title, properties)"
+            error_msg = (
+                f"{error_msg} - 必要なパラメータ (parent_id, title, properties)"
+            )
         elif "token" in error_msg.lower():
             error_type = "token_error"
 

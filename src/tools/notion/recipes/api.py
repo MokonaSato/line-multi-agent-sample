@@ -47,7 +47,10 @@ def validate_and_fix_recipe_data(
     validated["URL"] = recipe_data.get("URL", "")
 
     logging.info(
-        f"レシピデータ検証結果: 必須項目={validated['名前'] != '無題のレシピ' and validated['材料'] != '材料情報なし' and validated['手順'] != '手順情報なし'}"
+        (
+            "レシピデータ検証結果: 必須項目="
+            f"{validated['名前'] != '無題のレシピ' and validated['材料'] != '材料情報なし' and validated['手順'] != '手順情報なし'}"
+        )
     )
 
     return validated
@@ -246,8 +249,24 @@ def create(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                 f"使用されたパラメータ: title={final_title}, database_id={RECIPE_DATABASE_ID}, properties_keys={list(properties.keys())}"
             )
 
+            # サーバーエラーの特別処理（より広範なエラーパターンに対応）
+            if (
+                "502 Bad Gateway" in error_message
+                or "503" in error_message
+                or "504" in error_message
+                or "500" in error_message
+                or "temporary_server_error" in error_message
+                or "サーバーが混雑" in error_message
+                or "応答していません" in error_message
+            ):
+                error_type = "temporary_server_error"
+                error_message = (
+                    "Notion APIサーバーが一時的に利用できません。"
+                    "サーバーが混雑しているため、数分後に再試行してください。"
+                )
+
             # 特定のエラーケースへの対応
-            if "missing required parameters" in error_message.lower():
+            elif "missing required parameters" in error_message.lower():
                 error_type = "missing_parameter"
                 error_message = (
                     f"{error_message} - Notion API必須パラメータ(parent_id, "
