@@ -5,9 +5,9 @@
 import logging
 from typing import Any, Dict
 
-from src.agents.tools.notion.api import databases, pages
-from src.agents.tools.notion.constants import RECIPE_DATABASE_ID
-from src.agents.tools.notion.utils import build_recipe_properties
+from src.tools.notion.api import databases, pages
+from src.tools.notion.constants import RECIPE_DATABASE_ID
+from src.tools.notion.utils import build_recipe_properties
 
 
 def search_by_name(recipe_name: str) -> Dict[str, Any]:

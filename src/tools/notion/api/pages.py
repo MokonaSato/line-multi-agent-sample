@@ -4,8 +4,8 @@ Notion API のページ操作関数
 
 from typing import Any, Dict, List, Optional
 
-from src.agents.tools.notion.client import client
-from src.agents.tools.notion.utils import extract_page_title
+from src.tools.notion.client import client
+from src.tools.notion.utils import extract_page_title
 
 
 def get(page_id: str) -> Dict[str, Any]:

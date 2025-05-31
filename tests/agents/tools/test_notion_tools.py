@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.agents.tools.notion import (
+from src.tools.notion import (
     notion_create_page,
     notion_query_database,
     notion_search,

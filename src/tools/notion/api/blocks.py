@@ -4,7 +4,7 @@ Notion API のブロック操作関数
 
 from typing import Any, Dict, List
 
-from src.agents.tools.notion.client import client
+from src.tools.notion.client import client
 
 
 def get_children(block_id: str, page_size: int = 100) -> Dict[str, Any]:

@@ -4,7 +4,7 @@ Notion API の基本操作関数
 
 from typing import Any, Dict, Optional
 
-from src.agents.tools.notion.client import client
+from src.tools.notion.client import client
 
 
 def search(

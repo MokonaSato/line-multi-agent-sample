@@ -4,7 +4,7 @@ Notion API のデータベース操作関数
 
 from typing import Any, Dict, List, Optional
 
-from src.agents.tools.notion.client import client
+from src.tools.notion.client import client
 
 
 def get(database_id: str) -> Dict[str, Any]:

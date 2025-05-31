@@ -6,7 +6,7 @@ Notion API ツールの統合エントリポイント
 後方互換性を保ちながらも内部実装を整理する
 """
 
-from src.agents.tools.notion.api import (
+from src.tools.notion.api import (
     append_block_children,
     create_comment,
     create_database,
@@ -19,9 +19,9 @@ from src.agents.tools.notion.api import (
     search,
     update_page,
 )
-from src.agents.tools.notion.recipes import create as create_recipe
-from src.agents.tools.notion.recipes import get_all as get_all_recipes
-from src.agents.tools.notion.recipes import (
+from src.tools.notion.recipes import create as create_recipe
+from src.tools.notion.recipes import get_all as get_all_recipes
+from src.tools.notion.recipes import (
     search_by_name as search_recipes_by_name,
 )
 

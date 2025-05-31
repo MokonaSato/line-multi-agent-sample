@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from src.agents.tools.web_tools import fetch_web_content
+from src.tools.web_tools import fetch_web_content
 
 
 def test_fetch_web_content():
