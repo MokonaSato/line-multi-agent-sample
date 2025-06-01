@@ -1,8 +1,16 @@
 ---
 version: 1.0.0
 author: AI Team
-last_updated: 2025-05-31
+last_updated: 2025-06-01
 description: 出力フォーマット共通プロンプト
+template_type: formatting_base
+variables:
+  json_format: "2-space indentation"
+  table_format: "markdown table"
+  code_format: "language-specific syntax highlighting"
+  progress_indicators: "✅ 🔄 ⏱️"
+  error_indicators: "❌ 💡"
+  success_indicators: "✅ 🎉"
 ---
 
 # 出力フォーマット共通プロンプト
@@ -36,14 +44,17 @@ description: 出力フォーマット共通プロンプト
      }
    }
    ```
+   インデント: {{json_format}}
 
 2. **表形式**:
+   {{table_format}}を使用:
    | 項目 | 説明 | 値 |
    |-----|-----|-----|
    | 名前 | タイトル | 文字列 |
    | 数量 | 個数 | 数値 |
 
 3. **コード例**:
+   {{code_format}}を使用:
    ```python
    def example_function():
        return "Hello World"
@@ -52,14 +63,17 @@ description: 出力フォーマット共通プロンプト
 ## 特別な応答パターン
 
 1. **進捗報告**:
+   {{progress_indicators}}を使用:
    ✅ タスク1完了
    🔄 タスク2進行中
    ⏱️ タスク3待機中
 
 2. **エラー表示**:
+   {{error_indicators}}を使用:
    ❌ エラー: [エラー内容]
    💡 解決策: [解決方法]
 
 3. **成功メッセージ**:
+   {{success_indicators}}を使用:
    ✅ 操作が成功しました
    🎉 [タスク名]が完了しました！

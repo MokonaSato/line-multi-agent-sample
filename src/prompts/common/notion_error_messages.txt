@@ -1,3 +1,16 @@
+---
+version: 1.0.0
+author: AI Team
+last_updated: 2025-06-01
+description: Notion APIエラーメッセージ定義集
+message_type: error_definitions
+variables:
+  notion_token_env: "NOTION_TOKEN"
+  required_params: "parent_id, title, properties"
+  recipe_tool: "notion_create_recipe_page"
+  generic_tools: "notion_create_page, create"
+---
+
 # Notion APIエラーメッセージ定義集
 
 このファイルは、NotionツールAPIエラー発生時の統一的なエラーメッセージを定義します。
@@ -12,11 +25,11 @@
 ❌ Notion API 接続エラー
 
 Notion API トークンが設定されていません。
-環境変数 NOTION_TOKEN を設定してください。
+環境変数 {{notion_token_env}} を設定してください。
 
 📋 **設定方法**
 1. .env ファイルに以下を追加:
-   NOTION_TOKEN=secret_xxxxxxxxxxxxxxxxxxxx
+   {{notion_token_env}}=secret_xxxxxxxxxxxxxxxxxxxx
 2. アプリケーションを再起動する
 ```
 
@@ -39,7 +52,7 @@ Notion API トークンが無効です。
 ```
 ❌ レシピ登録エラー
 
-必須パラメータ（parent_id, title, properties）が不足しています。
+必須パラメータ（{{required_params}}）が不足しています。
 
 📋 **考えられる原因**
 - レシピ名（名前）が設定されていない
@@ -48,6 +61,10 @@ Notion API トークンが無効です。
 - データベースIDが正しく設定されていない
 
 🔄 別のレシピまたはURLでもう一度お試しください。
+
+💡 **推奨対処法**
+レシピ登録には {{recipe_tool}} ツールを使用してください。
+{{generic_tools}} ツールは使用しないでください。
 ```
 
 #### validation_error
@@ -62,32 +79,6 @@ Notion API トークンが無効です。
 - データ構造に問題がある
 
 🛠️ 別のレシピでもう一度お試しください。
-```
-
-### データベース関連エラー
-
-#### database_id_missing
-```
-❌ データベース接続エラー
-
-レシピデータベースIDが設定されていません。
-
-📋 **確認事項**
-- 正しいデータベースIDが設定されているか確認してください
-- データベースが存在することを確認してください
-- アクセス権限を確認してください
-```
-
-#### database_access_error
-```
-❌ データベースアクセスエラー
-
-レシピデータベースにアクセスできません。
-
-📋 **考えられる原因**
-- データベースが存在しない
-- 権限がない
-- データベースIDが間違っている
 ```
 
 ### API関連エラー
@@ -106,17 +97,33 @@ Notion API からエラーが返されました: [エラー詳細]
 ⏱️ しばらく時間をおいてからもう一度お試しください。
 ```
 
-#### unknown_error
+#### temporary_server_error
 ```
-❌ 不明なエラー
+❌ Notion API サーバーエラー
 
-予期しないエラーが発生しました: [エラー詳細]
+Notion API サーバーが一時的に応答していません。
+サーバーが混雑しているか、メンテナンス中の可能性があります。
 
-🔄 もう一度操作をお試しいただくか、別の方法でレシピを登録してください。
+⏱️ 数分後に再度お試しください。
 ```
 
-## エラーメッセージの使い分け
+## エラーメッセージの使い分けガイド
 
 エラーの種類を正確に判断し、適切なメッセージテンプレートを選択してください。
 不明なエラーの場合は、できるだけ詳細な情報をユーザーに提供してください。
 すべてのエラーメッセージにおいて、ユーザーが取るべきアクションを明確に示してください。
+
+## エラー種類別の対応方針
+
+### missing required parameters
+→ 必ず{{recipe_tool}}ツールを使用
+→ {{generic_tools}}ツールは使用禁止
+→ 必須フィールド（名前、材料、手順）を確実に設定
+
+### token系エラー
+→ 環境変数{{notion_token_env}}の設定確認
+→ トークンの有効性確認
+
+### API系エラー
+→ 一時的なサーバー問題の可能性
+→ 時間をおいて再試行

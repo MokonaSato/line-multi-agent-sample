@@ -132,3 +132,9 @@ workflows:
         - enhancement: "workflows/recipe/image_extraction/enhancement.txt"
         - notion: "workflows/recipe/image_extraction/notion.txt"
         - workflow: "workflows/recipe/image_extraction/workflow.txt"
+      enhancement:
+        variables:
+          agent_name: "画像レシピデータ整理エージェント"
+          forbidden_actions:
+            - "見えない材料の推測による追加"
+            - "一般的な知識による手順の補完"

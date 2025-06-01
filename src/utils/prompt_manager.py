@@ -7,7 +7,7 @@
 import logging
 import os
 import re
-from typing import Dict
+from typing import Any, Dict
 
 import yaml
 
@@ -109,20 +109,29 @@ class PromptManager:
                 content = file.read()
 
             # メタデータの処理
-            content = self._process_metadata(content)
+            content, metadata = self._process_metadata(content)
 
-            # 継承関係の処理
+            # extends 継承の処理
+            content = self._process_extends_inheritance(content)
+
+            # 従来の継承関係の処理（後方互換性）
             content = self._process_inheritance(content)
 
-            # テンプレート処理（変数置換）
+            # 変数を統合（メタデータ、設定ファイル、グローバル）
+            all_variables = {}
+            if metadata.get("variables"):
+                all_variables.update(metadata["variables"])
             if variables:
-                content = self._apply_variables(content, variables)
-
-            # グローバル変数の適用
+                all_variables.update(variables)
             if self.config and "global_variables" in self.config:
-                content = self._apply_variables(
-                    content, self.config["global_variables"]
-                )
+                all_variables.update(self.config["global_variables"])
+
+            # ループ処理（変数置換の前に実行）
+            content = self._process_each_loops(content, all_variables)
+
+            # テンプレート処理（変数置換）
+            if all_variables:
+                content = self._apply_variables(content, all_variables)
 
             self.loaded_prompts[prompt_id] = content
             return content
@@ -130,7 +139,7 @@ class PromptManager:
             logger.error(f"プロンプト '{prompt_id}' の読み込みに失敗: {e}")
             return f"Error loading prompt {prompt_id}: {str(e)}"
 
-    def _process_metadata(self, content: str) -> str:
+    def _process_metadata(self, content: str) -> tuple[str, dict]:
         """
         YAMLメタデータセクションを処理
 
@@ -138,26 +147,223 @@ class PromptManager:
             content: プロンプト内容
 
         Returns:
-            メタデータを除去したプロンプト内容
+            (メタデータを除去したプロンプト内容, メタデータ辞書)
         """
         # YAMLメタデータセクションを検出
         metadata_pattern = r"^---\s*$(.*?)^---\s*$"
         match = re.search(metadata_pattern, content, re.MULTILINE | re.DOTALL)
 
+        metadata = {}
         if match:
             # メタデータセクションを除去
             yaml_section = match.group(0)
             content = content.replace(yaml_section, "", 1).lstrip()
 
-            # メタデータを解析（現在は使用していないが将来的に役立つ可能性あり）
+            # メタデータを解析
             try:
                 metadata_content = match.group(1)
-                # メタデータは現在使用していないがログに記録
-                yaml.safe_load(metadata_content)
+                metadata = yaml.safe_load(metadata_content) or {}
+                logger.debug(f"メタデータを解析: {metadata}")
             except Exception as e:
                 logger.warning(f"メタデータの解析に失敗: {e}")
 
+        return content, metadata
+
+    def _process_extends_inheritance(self, content: str) -> str:
+        """
+        extends: template_path 形式の継承を処理
+
+        Args:
+            content: プロンプト内容
+
+        Returns:
+            継承を処理したプロンプト内容
+        """
+        # メタデータから extends を抽出
+        metadata_pattern = r"^---\s*$(.*?)^---\s*$"
+        match = re.search(metadata_pattern, content, re.MULTILINE | re.DOTALL)
+
+        if match:
+            try:
+                metadata_content = match.group(1)
+                metadata = yaml.safe_load(metadata_content) or {}
+
+                if "extends" in metadata:
+                    base_template_path = metadata["extends"]
+                    logger.debug(
+                        f"継承テンプレートを処理: {base_template_path}"
+                    )
+
+                    # ベーステンプレートを読み込む
+                    base_content = self.get_prompt(base_template_path)
+
+                    # メタデータセクションを除去したカスタム内容を取得
+                    custom_content = content.replace(
+                        match.group(0), "", 1
+                    ).lstrip()
+
+                    # ベースとカスタムをマージ
+                    return self._process_override_blocks(
+                        base_content, custom_content
+                    )
+
+            except Exception as e:
+                logger.error(f"extends継承の処理に失敗: {e}")
+
         return content
+
+    def _process_override_blocks(self, base: str, custom: str) -> str:
+        """
+        {{override: name}} ブロックの処理
+
+        Args:
+            base: ベーステンプレート内容
+            custom: カスタムプロンプト内容
+
+        Returns:
+            オーバーライドを処理したプロンプト内容
+        """
+        # ベーステンプレートの {{block: name}} パターンを検索
+        base_block_pattern = (
+            r"\{\{block:\s*([a-zA-Z0-9_]+)\s*\}\}(.*?)\{\{/block\}\}"
+        )
+        base_blocks = {}
+
+        # ベーステンプレートのブロックを抽出
+        for match in re.finditer(base_block_pattern, base, re.DOTALL):
+            block_name = match.group(1)
+            block_content = match.group(2)
+            base_blocks[block_name] = {
+                "content": block_content,
+                "full_match": match.group(0),
+            }
+            logger.debug(f"ベースブロックを発見: {block_name}")
+
+        result = base
+
+        # カスタム内容の {{override: name}} パターンを検索
+        override_pattern = (
+            r"\{\{override:\s*([a-zA-Z0-9_]+)\s*\}\}(.*?)\{\{/override\}\}"
+        )
+
+        for match in re.finditer(override_pattern, custom, re.DOTALL):
+            block_name = match.group(1)
+            override_content = match.group(2).strip()
+
+            logger.debug(f"オーバーライドブロックを発見: {block_name}")
+
+            if block_name in base_blocks:
+                # ベースのブロックをオーバーライド内容で置換
+                result = result.replace(
+                    base_blocks[block_name]["full_match"], override_content
+                )
+                logger.debug(f"ブロック '{block_name}' をオーバーライド")
+            else:
+                logger.warning(
+                    f"オーバーライド対象のブロック '{block_name}' がベーステンプレートに見つかりません"
+                )
+
+        # カスタム内容からオーバーライドブロックを除去した残りの内容を追加
+        remaining_custom = custom
+        for match in re.finditer(override_pattern, custom, re.DOTALL):
+            remaining_custom = remaining_custom.replace(match.group(0), "")
+
+        remaining_custom = remaining_custom.strip()
+        if remaining_custom:
+            result += "\n\n" + remaining_custom
+
+        return result
+
+    def _process_each_loops(self, content: str, variables: dict) -> str:
+        """
+        {{#each array}} ループの処理
+
+        Args:
+            content: プロンプト内容
+            variables: 置換する変数の辞書
+
+        Returns:
+            ループを処理したプロンプト内容
+        """
+        # {{#each variable_name}} ... {{/each}} パターンを検索
+        each_pattern = (
+            r"\{\{#each\s+([a-zA-Z0-9_\.]+)\s*\}\}(.*?)\{\{/each\}\}"
+        )
+
+        def replace_each_block(match):
+            var_path = match.group(1)
+            template_content = match.group(2)
+
+            # ネストした変数パスをサポート (例: forbidden_actions)
+            var_value = self._get_nested_variable(variables, var_path)
+
+            if not isinstance(var_value, (list, tuple)):
+                logger.warning(
+                    f"{{{{#each {var_path}}}}} の変数が配列ではありません: {type(var_value)}"
+                )
+                return f"<!-- Error: {var_path} is not an array -->"
+
+            result = []
+            for index, item in enumerate(var_value):
+                # テンプレート内容を展開
+                item_content = template_content
+
+                # {{this}} を現在のアイテムで置換
+                item_content = item_content.replace("{{this}}", str(item))
+
+                # {{@index}} をインデックスで置換
+                item_content = item_content.replace("{{@index}}", str(index))
+
+                # {{@last}} を最後の要素かどうかで置換
+                is_last = index == len(var_value) - 1
+
+                # {{#unless @last}} ... {{/unless}} パターンを処理
+                unless_last_pattern = (
+                    r"\{\{#unless\s+@last\s*\}\}(.*?)\{\{/unless\}\}"
+                )
+
+                def replace_unless_last(unless_match):
+                    unless_content = unless_match.group(1)
+                    return unless_content if not is_last else ""
+
+                item_content = re.sub(
+                    unless_last_pattern,
+                    replace_unless_last,
+                    item_content,
+                    flags=re.DOTALL,
+                )
+
+                result.append(item_content)
+
+            return "".join(result)
+
+        # すべての each ブロックを処理
+        return re.sub(
+            each_pattern, replace_each_block, content, flags=re.DOTALL
+        )
+
+    def _get_nested_variable(self, variables: dict, var_path: str) -> Any:
+        """
+        ネストした変数パスから値を取得
+
+        Args:
+            variables: 変数辞書
+            var_path: 変数パス (例: "user.name" or "forbidden_actions")
+
+        Returns:
+            変数の値
+        """
+        parts = var_path.split(".")
+        current = variables
+
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                logger.warning(f"変数パス '{var_path}' が見つかりません")
+                return None
+
+        return current
 
     def _apply_variables(self, content: str, variables: dict) -> str:
         """
@@ -170,14 +376,24 @@ class PromptManager:
         Returns:
             変数を置換したプロンプト内容
         """
-        for key, value in variables.items():
-            pattern = r"\{\{\s*" + re.escape(key) + r"\s*\}\}"
-            content = re.sub(pattern, str(value), content)
-        return content
+
+        def replace_variable(match):
+            var_path = match.group(1)
+            value = self._get_nested_variable(variables, var_path)
+
+            if value is None:
+                logger.warning(f"変数 '{var_path}' が見つかりません")
+                return f"{{{{UNDEFINED: {var_path}}}}}"
+
+            return str(value)
+
+        # {{variable_name}} または {{nested.variable}} パターンを置換
+        pattern = r"\{\{\s*([a-zA-Z0-9_\.]+)\s*\}\}"
+        return re.sub(pattern, replace_variable, content)
 
     def _process_inheritance(self, content: str) -> str:
         """
-        継承関係を処理
+        継承関係を処理（従来形式）
 
         Args:
             content: プロンプト内容
@@ -201,7 +417,7 @@ class PromptManager:
 
     def _merge_contents(self, base: str, custom: str) -> str:
         """
-        ベースと拡張コンテンツをマージ
+        ベースと拡張コンテンツをマージ（従来形式）
 
         Args:
             base: ベースプロンプト内容

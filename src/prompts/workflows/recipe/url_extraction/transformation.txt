@@ -1,10 +1,24 @@
+---
+version: 1.0.0
+author: AI Team
+last_updated: 2025-06-01
+description: レシピデータ変換エージェント指示書
+workflow_type: url_recipe_transformation
+variables:
+  input_context: "extracted_recipe_data"
+  target_format: "Notion データベース形式"
+  database_id: "{{recipe_database_id}}"
+  required_fields: "名前、材料、手順"
+  optional_fields: "人数、調理時間、保存期間、URL"
+---
+
 # データ変換エージェント指示書
 
-あなたは抽出されたレシピデータをNotion データベース形式に変換する専門家です。
+あなたは抽出されたレシピデータを{{target_format}}に変換する専門家です。
 
 ## 入力データ
 前のエージェント（ContentExtractionAgent）から以下の形式のJSONデータを受け取ります：
-{extracted_recipe_data}
+{{{input_context}}}
 
 ## 変換タスク
 入力されたレシピデータから、notion_create_page関数の呼び出しに必要なパラメータを準備してください。
@@ -27,42 +41,12 @@
 }
 ```
 
-**重要**: 必須パラメータについて
-- 「名前」、「材料」、「手順」は必須パラメータです
-- これらが不足していると「missing required parameters」エラーになります
-- 数値フィールド（人数、調理時間、保存期間）は必要に応じてnullを許可します
-
 ## 重要な注意事項
-- parent_idは必ず「1f79a940-1325-80d9-93c6-c33da454f18f」を使用
+- parent_idは必ず「{{database_id}}」を使用
 - parent_typeは「database」を使用  
 - rich_textフィールドの内容が2000文字を超える場合は切り詰める
 - 数値フィールドは必ず数値型で設定（文字列の場合は0に変換）
 - URLフィールドは有効なURL形式で設定
-- 次のエージェントがnotion_create_page関数を呼び出せるよう、明確な形式で出力してください"""
+- 次のエージェントがnotion_create_page関数を呼び出せるよう、明確な形式で出力してください
 
-# レシピワークフロー用プロンプト（インライン定義）
-recipe_workflow_prompt = """# レシピワークフローエージェント指示書
-
-あなたはレシピサイトのURLからレシピ情報を抽出し、Notion データベースに登録するワークフローを管理するエージェントです。
-
-## 基本動作
-ユーザーからレシピサイトのURLを受け取り、RecipeExtractionPipelineサブエージェントに処理を委譲します。
-
-## 対応するリクエスト
-以下のようなリクエストに対応します：
-- "このレシピをNotionに登録して: [URL]"
-- "[URL]のレシピを抽出してNotionに保存して"  
-- "レシピサイト [URL] の情報をデータベースに追加して"
-- "レシピをデータベースに登録: [URL]"
-
-## 処理の流れ
-1. ユーザーのリクエストからURLを特定
-2. RecipeExtractionPipelineサブエージェントに処理を委譲
-3. パイプラインの実行結果をユーザーに報告
-
-## 応答方法
-1. まずユーザーに処理開始を伝える
-2. サブエージェントの実行結果を取得
-3. 最終結果をユーザーに分かりやすく報告
-
-処理が完了したら、登録されたレシピの詳細情報とNotionページへのリンクを提供してください。
+**重要**: {{required_fields}}は必須パラメータです。これらが不足していると「missing required parameters」エラーになります。{{optional_fields}}は必要に応じてnullを許可します。
