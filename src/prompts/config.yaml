@@ -1,17 +1,25 @@
 version: 1.0.0
-description: "プロンプト管理システム設定ファイル（継承・メタデータ・変数対応）"
+description: "プロンプト管理システム設定ファイル（完全修正版）"
 default_lang: "ja"
 
-# グローバル変数
+# グローバル変数（必須）
 global_variables:
-  company_name: "AIサービス"
-  support_email: "support@example.com"
+  # レシピ関連
   recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
-  default_model: "gemini-2.5-flash-preview-05-20"
-  search_model: "gemini-2.0-flash"
-  # 共通の変数を追加
   required_tools: "notion_create_recipe_page"
   error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+  required_fields: "名前、材料、手順"
+  
+  # モデル設定
+  default_model: "gemini-2.5-flash-preview-05-20"
+  search_model: "gemini-2.0-flash"
+  
+  # 画像解析
+  image_analysis_principle: "画像から確認できる情報のみを抽出"
+  
+  # その他
+  company_name: "AIサービス"
+  support_email: "support@example.com"
 
 # エージェント設定
 agents:
@@ -19,7 +27,7 @@ agents:
     name: "root_agent"
     description: "複数のサブエージェントを管理・調整するルートエージェント"
     version: "1.0.0"
-    model: "{{default_model}}"
+    model: "gemini-2.5-flash-preview-05-20"
     variables:
       agent_name: "ルートエージェント"
       basic_principles: |
@@ -40,7 +48,7 @@ agents:
     name: "calculator_agent"
     description: "2つの数字を使って四則演算ができる計算エージェント"
     version: "1.0.0"
-    model: "{{default_model}}"
+    model: "gemini-2.5-flash-preview-05-20"
     variables:
       agent_name: "計算エージェント"
       available_functions:
@@ -55,9 +63,9 @@ agents:
     name: "NotionRegistrationAgent"
     description: "Notionワークスペースの包括的な操作を行うエージェント"
     version: "1.0.0"
-    model: "{{default_model}}"
+    model: "gemini-2.5-flash-preview-05-20"
     variables:
-      recipe_database_id: "{{recipe_database_id}}"
+      recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
       primary_tool: "notion_create_recipe_page"
       forbidden_tools: "notion_create_page, create"
       error_prevention_rule: "レシピ登録時は必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぐ"
@@ -69,7 +77,7 @@ agents:
     name: "vision_agent"
     description: "画像を分析して詳細な情報を抽出する視覚認識エージェント"
     version: "1.0.0"
-    model: "{{default_model}}"
+    model: "gemini-2.5-flash-preview-05-20"
     variables:
       agent_name: "画像認識エージェント"
       supported_types:
@@ -88,21 +96,22 @@ workflows:
       description: "URLからレシピを抽出し、Notionデータベースに登録するパイプライン"
       version: "1.0.0"
       variables:
-        recipe_database_id: "{{recipe_database_id}}"
-        required_tools: "{{required_tools}}"
-        error_prevention: "{{error_prevention}}"
+        recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
+        required_tools: "notion_create_recipe_page"
+        error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+        required_fields: "名前、材料、手順"
       agents:
         extraction:
           name: "ContentExtractionAgent"
-          model: "{{default_model}}"
+          model: "gemini-2.5-flash-preview-05-20"
           output_key: "extracted_recipe_data"
         transformation:
           name: "DataTransformationAgent"
-          model: "{{default_model}}"
+          model: "gemini-2.5-flash-preview-05-20"
           output_key: "notion_formatted_data"
         registration:
           name: "NotionRegistrationAgent"
-          model: "{{default_model}}"
+          model: "gemini-2.5-flash-preview-05-20"
           output_key: "registration_result"
       prompts:
         - extraction: "workflows/recipe/url_extraction/extraction.txt"
@@ -115,22 +124,23 @@ workflows:
       description: "画像からレシピを抽出し、Notionデータベースに登録するパイプライン"
       version: "1.0.0"
       variables:
-        recipe_database_id: "{{recipe_database_id}}"
-        required_tools: "{{required_tools}}"
-        error_prevention: "{{error_prevention}}"
+        recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
+        required_tools: "notion_create_recipe_page"
+        error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
         image_analysis_principle: "画像から確認できる情報のみを抽出"
+        required_fields: "名前、材料、手順"
       agents:
         analysis:
           name: "ImageAnalysisAgent"
-          model: "{{default_model}}"
+          model: "gemini-2.5-flash-preview-05-20"
           output_key: "extracted_image_data"
         enhancement:
           name: "ImageDataEnhancementAgent"
-          model: "{{default_model}}"
+          model: "gemini-2.5-flash-preview-05-20"
           output_key: "enhanced_recipe_data"
         registration:
           name: "RecipeNotionAgent"
-          model: "{{default_model}}"
+          model: "gemini-2.5-flash-preview-05-20"
           output_key: "registration_result"
       prompts:
         - analysis: "workflows/recipe/image_extraction/analysis.txt"
