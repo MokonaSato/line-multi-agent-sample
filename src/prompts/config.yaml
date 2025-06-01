@@ -1,15 +1,134 @@
 version: 1.0.0
-description: "プロンプト管理システム設定ファイル"
+description: "プロンプト管理システム設定ファイル（継承・メタデータ・変数対応）"
 default_lang: "ja"
-agents:
-  - root
-  - calculator
-  - vision
-  - notion
-workflows:
-  - recipe.url_extraction
-  - recipe.image_extraction
-# グローバル設定値
+
+# グローバル変数
 global_variables:
   company_name: "AIサービス"
   support_email: "support@example.com"
+  recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
+  default_model: "gemini-2.5-flash-preview-05-20"
+  search_model: "gemini-2.0-flash"
+
+# エージェント設定
+agents:
+  root:
+    name: "root_agent"
+    description: "複数のサブエージェントを管理・調整するルートエージェント"
+    version: "1.0.0"
+    model: "{{default_model}}"
+    variables:
+      agent_name: "ルートエージェント"
+      basic_principles: |
+        - ユーザーの質問や指示を慎重に分析してください
+        - 画像が含まれている場合は、画像の内容も考慮して適切な処理を決定してください
+        - 要求に最も適したツールまたはサブエージェントを選択してください
+        - 明確で簡潔な応答を提供してください
+        - 分からないことがあれば正直に認めてください
+      available_tools: |
+        - **Google Search**: 一般的な情報検索や最新の情報が必要な質問には、Google検索ツールを使用してください
+      workflow_descriptions:
+        recipe_extraction: "レシピサイトのURLからレシピ情報を自動抽出し、Notionデータベースに登録する専用パイプライン"
+        image_recipe_extraction: "画像からレシピ情報を自動抽出し、Notionデータベースに登録する専用パイプライン"
+    prompts:
+      - main: "agents/root/main.txt"
+
+  calculator:
+    name: "calculator_agent"
+    description: "2つの数字を使って四則演算ができる計算エージェント"
+    version: "1.0.0"
+    model: "{{default_model}}"
+    variables:
+      agent_name: "計算エージェント"
+      available_functions:
+        - "add_numbers: 2つの数字を足し算します"
+        - "subtract_numbers: 1つ目の数字から2つ目の数字を引きます"
+        - "multiply_numbers: 2つの数字を掛け算します"
+        - "divide_numbers: 1つ目の数字を2つ目の数字で割ります（0での除算はエラーになります）"
+    prompts:
+      - main: "agents/calculator/main.txt"
+
+  notion:
+    name: "NotionRegistrationAgent"
+    description: "Notionワークスペースの包括的な操作を行うエージェント"
+    version: "1.0.0"
+    model: "{{default_model}}"
+    variables:
+      recipe_database_id: "{{recipe_database_id}}"
+      primary_tool: "notion_create_recipe_page"
+      forbidden_tools: "notion_create_page, create"
+      error_prevention_rule: "レシピ登録時は必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぐ"
+    prompts:
+      - main: "agents/notion/main.txt"
+
+  vision:
+    name: "vision_agent"
+    description: "画像を分析して詳細な情報を抽出する視覚認識エージェント"
+    version: "1.0.0"
+    model: "{{default_model}}"
+    variables:
+      agent_name: "画像認識エージェント"
+      supported_types:
+        - "料理写真"
+        - "製品画像"
+        - "スクリーンショット"
+        - "図表"
+    prompts:
+      - main: "agents/vision/main.txt"
+
+# ワークフロー設定
+workflows:
+  recipe:
+    url_extraction:
+      name: "RecipeExtractionPipeline"
+      description: "URLからレシピを抽出し、Notionデータベースに登録するパイプライン"
+      version: "1.0.0"
+      variables:
+        recipe_database_id: "{{recipe_database_id}}"
+        required_tools: "notion_create_recipe_page"
+        error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+      agents:
+        extraction:
+          name: "ContentExtractionAgent"
+          model: "{{default_model}}"
+          output_key: "extracted_recipe_data"
+        transformation:
+          name: "DataTransformationAgent"
+          model: "{{default_model}}"
+          output_key: "notion_formatted_data"
+        registration:
+          name: "NotionRegistrationAgent"
+          model: "{{default_model}}"
+          output_key: "registration_result"
+      prompts:
+        - extraction: "workflows/recipe/url_extraction/extraction.txt"
+        - transformation: "workflows/recipe/url_extraction/transformation.txt"
+        - notion: "workflows/recipe/url_extraction/notion.txt"
+        - workflow: "workflows/recipe/url_extraction/workflow.txt"
+
+    image_extraction:
+      name: "ImageRecipeExtractionPipeline"
+      description: "画像からレシピを抽出し、Notionデータベースに登録するパイプライン"
+      version: "1.0.0"
+      variables:
+        recipe_database_id: "{{recipe_database_id}}"
+        required_tools: "notion_create_recipe_page"
+        image_analysis_principle: "画像から確認できる情報のみを抽出"
+      agents:
+        analysis:
+          name: "ImageAnalysisAgent"
+          model: "{{default_model}}"
+          output_key: "extracted_image_data"
+        enhancement:
+          name: "ImageDataEnhancementAgent"
+          model: "{{default_model}}"
+          output_key: "enhanced_recipe_data"
+        registration:
+          name: "RecipeNotionAgent"
+          model: "{{default_model}}"
+          output_key: "registration_result"
+      prompts:
+        - analysis: "workflows/recipe/image_extraction/analysis.txt"
+        - enhancement: "workflows/recipe/image_extraction/enhancement.txt"
+        - notion: "workflows/recipe/image_extraction/notion.txt"
+        - workflow: "workflows/recipe/image_extraction/workflow.txt"

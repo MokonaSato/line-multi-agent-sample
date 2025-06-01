@@ -19,7 +19,7 @@ from src.tools.notion.api import (
     search,
     update_page,
 )
-from src.tools.notion.filter_utils import (
+from src.tools.notion.filter_utils import (  # noqa: F401
     build_multi_select_filter,
     build_recipe_search_filter,
     build_title_filter,
@@ -28,7 +28,7 @@ from src.tools.notion.filter_utils import (
 from src.tools.notion.recipes import create as create_recipe
 from src.tools.notion.recipes import get_all as get_all_recipes
 from src.tools.notion.recipes import search_by_name as search_recipes_by_name
-from src.tools.notion.recipes import search_recipes_with_category
+from src.tools.notion.recipes import search_recipes_with_category  # noqa: F401
 
 # 後方互換性のための関数エイリアス
 notion_search = search
