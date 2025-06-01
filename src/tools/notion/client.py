@@ -235,7 +235,8 @@ class NotionAPIClient:
                             )
                         else:
                             error_message_ja = (
-                                f"Notion API サーバーが一時的に応答していません (HTTP {status_code})。"
+                                f"Notion API サーバーが"
+                                f"一時的に応答していません (HTTP {status_code})。"
                                 f"サーバーが混雑しているか、メンテナンス中の可能性があります。"
                                 f"数分後に再度お試しください。"
                             )

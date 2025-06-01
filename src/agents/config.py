@@ -44,7 +44,11 @@ AGENT_CONFIG = {
             "name": "NotionRegistrationAgent",
             "model": DEFAULT_MODEL,
             "prompt_key": "recipe_notion",
-            "description": "変換されたデータをNotion データベースに登録します。必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぎます。",
+            "description": (
+                "変換されたデータをNotion データベースに登録します。"
+                "必ずnotion_create_recipe_pageツールを使用し、"
+                "missing required parametersエラーを防ぎます。"
+            ),
             "output_key": "registration_result",
         },
         "workflow_agent": {
@@ -78,7 +82,11 @@ AGENT_CONFIG = {
             "name": "RecipeNotionAgent",
             "model": DEFAULT_MODEL,
             "prompt_key": "image_notion",
-            "description": "強化されたレシピデータを料理レシピデータベースに登録します。必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぎます。",
+            "description": (
+                "強化されたレシピデータを料理レシピデータベースに登録します。"
+                "必ずnotion_create_recipe_pageツールを使用し、"
+                "missing required parametersエラーを防ぎます。"
+            ),
             "output_key": "registration_result",
         },
         "workflow_agent": {

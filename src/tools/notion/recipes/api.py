@@ -191,7 +191,8 @@ def notion_create_recipe_page(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     # 入力データの詳細ログ
     logging.info(
-        f"notion_create_recipe_page called with data keys: {list(recipe_data.keys())}"
+        "notion_create_recipe_page called with data keys: %s",
+        list(recipe_data.keys()),
     )
 
     # 必須フィールドの存在をログ出力
@@ -213,7 +214,10 @@ def notion_create_recipe_page(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
             logging.error(error_message)
             return {
                 "success": False,
-                "error": "Notion API トークンが設定されていません。環境変数 NOTION_TOKEN を確認してください。",
+                "error": (
+                    "Notion API トークンが設定されていません。"
+                    "環境変数 NOTION_TOKEN を確認してください。"
+                ),
                 "page_id": None,
                 "url": None,
                 "error_type": "token_missing",
@@ -299,7 +303,11 @@ def notion_create_recipe_page(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
             }
 
         logging.info(
-            f"送信データ: parent_id={RECIPE_DATABASE_ID}, title={final_title}, properties={list(properties.keys())}"
+            (
+                f"送信データ: parent_id={RECIPE_DATABASE_ID}, "
+                f"title={final_title}, "
+                f"properties={list(properties.keys())}"
+            )
         )
 
         # ページ作成 - 必須パラメータを明示的に設定
@@ -323,7 +331,11 @@ def notion_create_recipe_page(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
                 f"エラー詳細: type={error_type}, message={error_message}"
             )
             logging.error(
-                f"使用されたパラメータ: title={final_title}, database_id={RECIPE_DATABASE_ID}, properties_keys={list(properties.keys())}"
+                (
+                    f"使用されたパラメータ: title={final_title}, "
+                    f"database_id={RECIPE_DATABASE_ID}, "
+                    f"properties_keys={list(properties.keys())}"
+                )
             )
 
             # サーバーエラーの特別処理（より広範なエラーパターンに対応）
