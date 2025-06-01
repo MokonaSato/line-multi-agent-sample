@@ -414,5 +414,130 @@ def notion_create_recipe_page(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
+def search_recipes_with_category(
+    category: str = None,
+    recipe_name: str = None,
+    cooking_time_max: int = None,
+    serving_size: int = None,
+) -> Dict[str, Any]:
+    """
+    カテゴリやその他の条件でレシピを検索する関数
+    マルチセレクトプロパティに適切に対応
+
+    Args:
+        category: カテゴリ名（例: "メインディッシュ", "デザート"）
+        recipe_name: レシピ名（部分一致）
+        cooking_time_max: 最大調理時間（分）
+        serving_size: 人数
+
+    Returns:
+        検索結果のディクショナリ
+    """
+    try:
+        from src.tools.notion.filter_utils import (
+            build_recipe_search_filter,
+            safe_query_with_fallback,
+        )
+
+        # フィルター条件を構築
+        filter_conditions = build_recipe_search_filter(
+            recipe_name=recipe_name,
+            category=category,
+            cooking_time_max=cooking_time_max,
+            serving_size=serving_size,
+        )
+
+        # 安全なクエリ実行
+        result = safe_query_with_fallback(
+            database_id=RECIPE_DATABASE_ID,
+            filter_conditions=filter_conditions,
+            page_size=50,
+        )
+
+        return result
+
+    except Exception as e:
+        logging.error(f"レシピカテゴリ検索中にエラー: {e}")
+
+        # フォールバック: 全件取得してPython側でフィルタリング
+        try:
+            all_recipes = databases.query(
+                database_id=RECIPE_DATABASE_ID, page_size=100
+            )
+
+            if not all_recipes.get("success"):
+                return all_recipes
+
+            filtered_results = []
+            for recipe in all_recipes.get("results", []):
+                properties = recipe.get("properties", {})
+
+                # カテゴリフィルタリング
+                if category:
+                    category_prop = properties.get("カテゴリ", {})
+                    if category_prop.get("type") == "multi_select":
+                        categories = category_prop.get("multi_select", [])
+                        category_names = [
+                            cat.get("name", "") for cat in categories
+                        ]
+                        if not any(
+                            category.lower() in cat_name.lower()
+                            for cat_name in category_names
+                        ):
+                            continue
+
+                # レシピ名フィルタリング
+                if recipe_name:
+                    title_prop = properties.get("名前", {})
+                    if title_prop.get("type") == "title":
+                        title_parts = title_prop.get("title", [])
+                        full_title = "".join(
+                            [
+                                part.get("text", {}).get("content", "")
+                                for part in title_parts
+                            ]
+                        )
+                        if recipe_name.lower() not in full_title.lower():
+                            continue
+
+                # 調理時間フィルタリング
+                if cooking_time_max is not None:
+                    time_prop = properties.get("調理時間", {})
+                    if time_prop.get("type") == "number":
+                        cooking_time = time_prop.get("number")
+                        if (
+                            cooking_time is not None
+                            and cooking_time > cooking_time_max
+                        ):
+                            continue
+
+                # 人数フィルタリング
+                if serving_size is not None:
+                    size_prop = properties.get("人数", {})
+                    if size_prop.get("type") == "number":
+                        size = size_prop.get("number")
+                        if size is not None and size != serving_size:
+                            continue
+
+                filtered_results.append(recipe)
+
+            return {
+                "success": True,
+                "results": filtered_results,
+                "has_more": False,
+                "next_cursor": None,
+                "total_count": len(filtered_results),
+                "note": "Python側でフィルタリングを実行しました",
+            }
+
+        except Exception as fallback_error:
+            return {
+                "success": False,
+                "error": f"フォールバック検索も失敗: {str(fallback_error)}",
+                "results": [],
+                "total_count": 0,
+            }
+
+
 # 後方互換性のためのエイリアス
 create = notion_create_recipe_page

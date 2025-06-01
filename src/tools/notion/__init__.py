@@ -19,9 +19,16 @@ from src.tools.notion.api import (
     search,
     update_page,
 )
+from src.tools.notion.filter_utils import (
+    build_multi_select_filter,
+    build_recipe_search_filter,
+    build_title_filter,
+    safe_query_with_fallback,
+)
 from src.tools.notion.recipes import create as create_recipe
 from src.tools.notion.recipes import get_all as get_all_recipes
 from src.tools.notion.recipes import search_by_name as search_recipes_by_name
+from src.tools.notion.recipes import search_recipes_with_category
 
 # 後方互換性のための関数エイリアス
 notion_search = search
