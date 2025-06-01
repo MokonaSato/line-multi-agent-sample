@@ -9,6 +9,9 @@ global_variables:
   recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
   default_model: "gemini-2.5-flash-preview-05-20"
   search_model: "gemini-2.0-flash"
+  # 共通の変数を追加
+  required_tools: "notion_create_recipe_page"
+  error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
 
 # エージェント設定
 agents:
@@ -58,6 +61,7 @@ agents:
       primary_tool: "notion_create_recipe_page"
       forbidden_tools: "notion_create_page, create"
       error_prevention_rule: "レシピ登録時は必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぐ"
+      required_fields: "名前、材料、手順"
     prompts:
       - main: "agents/notion/main.txt"
 
@@ -85,8 +89,8 @@ workflows:
       version: "1.0.0"
       variables:
         recipe_database_id: "{{recipe_database_id}}"
-        required_tools: "notion_create_recipe_page"
-        error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+        required_tools: "{{required_tools}}"
+        error_prevention: "{{error_prevention}}"
       agents:
         extraction:
           name: "ContentExtractionAgent"
@@ -112,7 +116,8 @@ workflows:
       version: "1.0.0"
       variables:
         recipe_database_id: "{{recipe_database_id}}"
-        required_tools: "notion_create_recipe_page"
+        required_tools: "{{required_tools}}"
+        error_prevention: "{{error_prevention}}"
         image_analysis_principle: "画像から確認できる情報のみを抽出"
       agents:
         analysis:

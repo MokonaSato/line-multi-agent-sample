@@ -8,6 +8,13 @@
 DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
 SEARCH_MODEL = "gemini-2.0-flash"  # 検索用の軽量モデル
 
+# 共通の設定値
+RECIPE_DATABASE_ID = "1f79a940-1325-80d9-93c6-c33da454f18f"
+REQUIRED_TOOLS = "notion_create_recipe_page"
+ERROR_PREVENTION = (
+    "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+)
+
 # エージェント設定
 AGENT_CONFIG = {
     # ルートエージェント設定
@@ -46,7 +53,7 @@ AGENT_CONFIG = {
             "prompt_key": "recipe_notion",
             "description": (
                 "変換されたデータをNotion データベースに登録します。"
-                "必ずnotion_create_recipe_pageツールを使用し、"
+                f"必ず{REQUIRED_TOOLS}ツールを使用し、"
                 "missing required parametersエラーを防ぎます。"
             ),
             "output_key": "registration_result",
@@ -60,6 +67,8 @@ AGENT_CONFIG = {
         "pipeline": {
             "name": "RecipeExtractionPipeline",
             "description": "URLからレシピを抽出し、Notion データベースに登録するパイプラインを実行します。",
+            "required_tools": REQUIRED_TOOLS,
+            "error_prevention": ERROR_PREVENTION,
         },
     },
     # 画像レシピ関連エージェント
@@ -84,7 +93,7 @@ AGENT_CONFIG = {
             "prompt_key": "image_notion",
             "description": (
                 "強化されたレシピデータを料理レシピデータベースに登録します。"
-                "必ずnotion_create_recipe_pageツールを使用し、"
+                f"必ず{REQUIRED_TOOLS}ツールを使用し、"
                 "missing required parametersエラーを防ぎます。"
             ),
             "output_key": "registration_result",
@@ -98,6 +107,8 @@ AGENT_CONFIG = {
         "pipeline": {
             "name": "ImageRecipeExtractionPipeline",
             "description": "画像からレシピを抽出し、Notion レシピデータベースに登録するパイプラインを実行します。",
+            "required_tools": REQUIRED_TOOLS,
+            "error_prevention": ERROR_PREVENTION,
         },
     },
     # Google検索エージェント
@@ -117,7 +128,7 @@ AGENT_CONFIG = {
             "レシピの登録、検索、閲覧、管理を含む全般的なNotion関連タスクに対応します。"
             "レシピデータベースの操作（登録・検索・一覧表示）、"
             "ページやデータベースの検索・作成・更新、およびコンテンツの管理を行います。"
-            "レシピ登録の場合は必ずnotion_create_recipe_pageツールを使用し、"
+            f"レシピ登録の場合は必ず{REQUIRED_TOOLS}ツールを使用し、"
             "レシピ検索の場合は適切な検索ツールを使用します。"
         ),
         "output_key": "registration_result",
