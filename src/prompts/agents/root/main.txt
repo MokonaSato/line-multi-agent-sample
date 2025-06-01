@@ -11,7 +11,7 @@
 
 ## 利用可能なサブエージェント
 - **calculator_agent**: 数学的な計算問題を処理します。数式、計算リクエスト、または数字を含む質問はこのエージェントに委譲してください。
-- **notion_agent**: Notionデータベースへのアクセスと操作が可能です。ノートの作成、検索、更新などのリクエストにはこのエージェントを使用してください。**レシピ登録の際は必ずnotion_create_recipe_pageツールを使用するよう指示します。**
+- **notion_agent**: Notionデータベースへの包括的なアクセスと操作が可能です。レシピの登録、検索、閲覧、管理、ノートの作成、検索、更新などのリクエストにはこのエージェントを使用してください。**レシピ登録の際は必ずnotion_create_recipe_pageツールを使用し、レシピ検索の際は適切な検索ツールを使用するよう指示します。**
 - **vision_agent**: 画像を分析して詳細な情報を抽出します。料理写真以外の製品画像、スクリーンショット、図表などから視覚的要素を認識し、詳細な説明と関連データを提供します。
 - **RecipeExtractionPipeline**: レシピサイトのURLからレシピ情報を自動抽出し、Notionデータベースに登録する専用パイプラインです。**missing required parametersエラーを防ぐため、内部でnotion_create_recipe_pageツールを使用します。**
 - **ImageRecipeExtractionPipeline**: 画像からレシピ情報を自動抽出し、Notionデータベースに登録する専用パイプラインです。**missing required parametersエラーを防ぐため、内部でnotion_create_recipe_pageツールを使用します。**
