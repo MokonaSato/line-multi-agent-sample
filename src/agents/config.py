@@ -1,3 +1,4 @@
+# src/agents/config.py
 """エージェントシステムの設定モジュール
 
 このモジュールは、エージェントの設定（モデル、ツール、説明文など）を定義します。
@@ -23,6 +24,12 @@ AGENT_CONFIG = {
         "model": DEFAULT_MODEL,
         "prompt_key": "root",
         "description": "複数のサブエージェントを管理・調整するルートエージェント",
+        # 変数を明示的に追加
+        "variables": {
+            "recipe_database_id": RECIPE_DATABASE_ID,
+            "required_tools": REQUIRED_TOOLS,
+            "error_prevention": ERROR_PREVENTION,
+        },
     },
     # 計算エージェント設定
     "calculator": {
@@ -39,6 +46,9 @@ AGENT_CONFIG = {
             "prompt_key": "recipe_extraction",
             "description": "URLからレシピ情報を抽出します。",
             "output_key": "extracted_recipe_data",
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+            },
         },
         "transformation_agent": {
             "name": "DataTransformationAgent",
@@ -46,6 +56,9 @@ AGENT_CONFIG = {
             "prompt_key": "data_transformation",
             "description": "抽出されたレシピデータをNotion DB形式に変換します。",
             "output_key": "notion_formatted_data",
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+            },
         },
         "registration_agent": {
             "name": "NotionRegistrationAgent",
@@ -57,18 +70,29 @@ AGENT_CONFIG = {
                 "missing required parametersエラーを防ぎます。"
             ),
             "output_key": "registration_result",
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+                "required_tools": REQUIRED_TOOLS,
+            },
         },
         "workflow_agent": {
             "name": "RecipeWorkflowAgent",
             "model": DEFAULT_MODEL,
             "prompt_key": "recipe_workflow",
             "description": "URLからのレシピ抽出・登録ワークフローの全体を管理します。",
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+                "required_tools": REQUIRED_TOOLS,
+            },
         },
         "pipeline": {
             "name": "RecipeExtractionPipeline",
             "description": "URLからレシピを抽出し、Notion データベースに登録するパイプラインを実行します。",
             "required_tools": REQUIRED_TOOLS,
             "error_prevention": ERROR_PREVENTION,
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+            },
         },
     },
     # 画像レシピ関連エージェント
@@ -97,18 +121,29 @@ AGENT_CONFIG = {
                 "missing required parametersエラーを防ぎます。"
             ),
             "output_key": "registration_result",
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+                "required_tools": REQUIRED_TOOLS,
+            },
         },
         "workflow_agent": {
             "name": "ImageRecipeWorkflowAgent",
             "model": DEFAULT_MODEL,
             "prompt_key": "image_workflow",
             "description": "画像レシピ抽出・登録ワークフローの全体を管理します。",
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+                "required_tools": REQUIRED_TOOLS,
+            },
         },
         "pipeline": {
             "name": "ImageRecipeExtractionPipeline",
             "description": "画像からレシピを抽出し、Notion レシピデータベースに登録するパイプラインを実行します。",
             "required_tools": REQUIRED_TOOLS,
             "error_prevention": ERROR_PREVENTION,
+            "variables": {
+                "recipe_database_id": RECIPE_DATABASE_ID,
+            },
         },
     },
     # Google検索エージェント
@@ -132,6 +167,10 @@ AGENT_CONFIG = {
             "レシピ検索の場合は適切な検索ツールを使用します。"
         ),
         "output_key": "registration_result",
+        "variables": {
+            "recipe_database_id": RECIPE_DATABASE_ID,
+            "required_tools": REQUIRED_TOOLS,
+        },
     },
     # 汎用画像認識エージェント
     "vision": {

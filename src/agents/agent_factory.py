@@ -29,6 +29,16 @@ class AgentFactory:
     def __init__(self, prompts: Dict[str, str], config: Dict):
         self.prompts = prompts
         self.config = config
+        # 共通変数を追加
+        self.common_variables = {
+            "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
+            "required_tools": "notion_create_recipe_page",
+            "error_prevention": (
+                "missing required parametersエラーを防ぐため、"
+                "内部で専用ツールを使用"
+            ),
+            "required_fields": "名前、材料、手順",
+        }
 
     def create_calculator_agent(self) -> Agent:
         """計算エージェントを作成"""
@@ -79,7 +89,6 @@ class AgentFactory:
 
     def create_url_recipe_pipeline(self) -> SequentialAgent:
         """URLレシピ抽出パイプラインを作成"""
-        # 設定を取得
         url_cfg = self.config["url_recipe"]
         extract_cfg = url_cfg["extraction_agent"]
         transform_cfg = url_cfg["transformation_agent"]
@@ -87,30 +96,51 @@ class AgentFactory:
         pipe_cfg = url_cfg["pipeline"]
 
         # 1. Content Extraction Agent
+        extract_instruction = self.prompts[extract_cfg["prompt_key"]]
+        for key, value in self.common_variables.items():
+            placeholder = "{{" + key + "}}"
+            extract_instruction = extract_instruction.replace(
+                placeholder, str(value)
+            )
+
         content_extraction_agent = LlmAgent(
             name=extract_cfg["name"],
             model=extract_cfg["model"],
-            instruction=self.prompts[extract_cfg["prompt_key"]],
+            instruction=extract_instruction,
             description=extract_cfg["description"],
             tools=[fetch_web_content],
             output_key=extract_cfg["output_key"],
         )
 
         # 2. Data Transformation Agent
+        transform_instruction = self.prompts[transform_cfg["prompt_key"]]
+        for key, value in self.common_variables.items():
+            placeholder = "{{" + key + "}}"
+            transform_instruction = transform_instruction.replace(
+                placeholder, str(value)
+            )
+
         data_transformation_agent = LlmAgent(
             name=transform_cfg["name"],
             model=transform_cfg["model"],
-            instruction=self.prompts[transform_cfg["prompt_key"]],
+            instruction=transform_instruction,
             description=transform_cfg["description"],
             tools=[],
             output_key=transform_cfg["output_key"],
         )
 
         # 3. Notion Registration Agent
+        register_instruction = self.prompts[register_cfg["prompt_key"]]
+        for key, value in self.common_variables.items():
+            placeholder = "{{" + key + "}}"
+            register_instruction = register_instruction.replace(
+                placeholder, str(value)
+            )
+
         notion_registration_agent = LlmAgent(
             name=register_cfg["name"],
             model=register_cfg["model"],
-            instruction=self.prompts[register_cfg["prompt_key"]],
+            instruction=register_instruction,
             description=register_cfg["description"],
             tools=notion_tools_list,
             output_key=register_cfg["output_key"],
@@ -187,10 +217,18 @@ class AgentFactory:
         url_recipe_pipeline = self.create_url_recipe_pipeline()
         cfg = self.config["url_recipe"]["workflow_agent"]
 
+        # プロンプトに変数を注入
+        instruction = self.prompts[cfg["prompt_key"]]
+
+        # 変数置換を手動で行う
+        for key, value in self.common_variables.items():
+            placeholder = "{{" + key + "}}"
+            instruction = instruction.replace(placeholder, str(value))
+
         return LlmAgent(
             name=cfg["name"],
             model=cfg["model"],
-            instruction=self.prompts[cfg["prompt_key"]],
+            instruction=instruction,
             description=cfg["description"],
             sub_agents=[url_recipe_pipeline],
         )
@@ -200,10 +238,18 @@ class AgentFactory:
         image_recipe_pipeline = self.create_image_recipe_pipeline()
         cfg = self.config["image_recipe"]["workflow_agent"]
 
+        # プロンプトに変数を注入
+        instruction = self.prompts[cfg["prompt_key"]]
+
+        # 変数置換を手動で行う
+        for key, value in self.common_variables.items():
+            placeholder = "{{" + key + "}}"
+            instruction = instruction.replace(placeholder, str(value))
+
         return LlmAgent(
             name=cfg["name"],
             model=cfg["model"],
-            instruction=self.prompts[cfg["prompt_key"]],
+            instruction=instruction,
             description=cfg["description"],
             sub_agents=[image_recipe_pipeline],
         )
@@ -234,10 +280,18 @@ class AgentFactory:
         """ルートエージェントを作成"""
         cfg = self.config["root"]
 
+        # プロンプトに変数を注入
+        instruction = self.prompts[cfg["prompt_key"]]
+
+        # 変数置換を手動で行う
+        for key, value in self.common_variables.items():
+            placeholder = "{{" + key + "}}"
+            instruction = instruction.replace(placeholder, str(value))
+
         return LlmAgent(
             model=cfg["model"],
             name=cfg["name"],
-            instruction=self.prompts[cfg["prompt_key"]],
+            instruction=instruction,
             description=cfg["description"],
             tools=[
                 agent_tool.AgentTool(agent=sub_agents["google_search_agent"]),
