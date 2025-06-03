@@ -31,7 +31,7 @@ class AgentFactory:
         self.config = config
         # 共通変数を追加
         self.common_variables = {
-            "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
+            "recipe_database_id": "recipe-database-id",
             "required_tools": "notion_create_recipe_page",
             "error_prevention": (
                 "missing required parametersエラーを防ぐため、"

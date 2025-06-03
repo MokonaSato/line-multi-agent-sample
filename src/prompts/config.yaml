@@ -5,7 +5,7 @@ default_lang: "ja"
 # グローバル変数（全てのプロンプトで使用可能）
 global_variables:
   # レシピ関連
-  recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
+  recipe_database_id: "recipe-database-id"
   required_tools: "notion_create_recipe_page"
   error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
   required_fields: "名前、材料、手順"
@@ -26,7 +26,7 @@ agents:
   root:
     variables:
       agent_name: "ルートエージェント"
-      recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"  # 明示的に設定
+      recipe_database_id: "recipe-database-id"  # 明示的に設定
       basic_principles: |
         - ユーザーの質問や指示を慎重に分析してください
         - 画像が含まれている場合は、画像の内容も考慮して適切な処理を決定してください
@@ -63,7 +63,7 @@ agents:
     version: "1.0.0"
     model: "gemini-2.5-flash-preview-05-20"
     variables:
-      recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
+      recipe_database_id: "recipe-database-id"
       primary_tool: "notion_create_recipe_page"
       forbidden_tools: "notion_create_page, create"
       error_prevention_rule: "レシピ登録時は必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぐ"
@@ -94,7 +94,7 @@ workflows:
       description: "URLからレシピを抽出し、Notionデータベースに登録するパイプライン"
       version: "1.0.0"
       variables:
-        recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"  # 明示的に設定
+        recipe_database_id: "recipe-database-id"  # 明示的に設定
         required_tools: "notion_create_recipe_page"
         error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
         required_fields: "名前、材料、手順"
@@ -123,7 +123,7 @@ workflows:
       description: "画像からレシピを抽出し、Notionデータベースに登録するパイプライン"
       version: "1.0.0"
       variables:
-        recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"  # 明示的に設定
+        recipe_database_id: "recipe-database-id"  # 明示的に設定
         required_tools: "notion_create_recipe_page"
         error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
         image_analysis_principle: "画像から確認できる情報のみを抽出"

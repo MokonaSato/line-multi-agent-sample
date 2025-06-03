@@ -17,4 +17,4 @@ RECIPE_PROPERTY_MAPPING = {
 }
 
 # レシピデータベースID
-RECIPE_DATABASE_ID = "1f79a940-1325-80d9-93c6-c33da454f18f"
+RECIPE_DATABASE_ID = "recipe-database-id"
