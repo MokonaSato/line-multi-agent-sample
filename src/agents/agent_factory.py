@@ -11,6 +11,7 @@ from google.adk.agents import Agent, SequentialAgent
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools import agent_tool, google_search
 
+from src.agents.filesystem_agent import create_filesystem_agent
 from src.tools.calculator_tools import calculator_tools_list
 from src.tools.notion import notion_tools_list
 from src.tools.web_tools import fetch_web_content
@@ -31,7 +32,7 @@ class AgentFactory:
         self.config = config
         # 共通変数を追加
         self.common_variables = {
-            "recipe_database_id": "recipe-database-id",
+            "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
             "required_tools": "notion_create_recipe_page",
             "error_prevention": (
                 "missing required parametersエラーを防ぐため、"
@@ -86,6 +87,11 @@ class AgentFactory:
             description=cfg["description"],
             tools=[],  # 画像分析のみ
         )
+
+    async def create_filesystem_agent(self) -> LlmAgent:
+        """ファイルシステムエージェントを作成"""
+        cfg = self.config["filesystem"]
+        return await create_filesystem_agent(cfg["model"])
 
     def create_url_recipe_pipeline(self) -> SequentialAgent:
         """URLレシピ抽出パイプラインを作成"""
@@ -265,6 +271,7 @@ class AgentFactory:
         google_search_agent = self.create_google_search_agent()
         notion_agent = self.create_notion_agent()
         vision_agent = self.create_vision_agent()
+        filesystem_agent = self.create_filesystem_agent()
 
         # エージェントをディクショナリにまとめて返却
         return {
@@ -274,6 +281,7 @@ class AgentFactory:
             "google_search_agent": google_search_agent,
             "notion_agent": notion_agent,
             "vision_agent": vision_agent,
+            "filesystem_agent": filesystem_agent,
         }
 
     def create_root_agent(self, sub_agents: Dict[str, Agent]) -> LlmAgent:
@@ -302,5 +310,6 @@ class AgentFactory:
                 sub_agents["image_recipe_workflow_agent"],
                 sub_agents["notion_agent"],
                 sub_agents["vision_agent"],
+                sub_agents["filesystem_agent"],
             ],
         )

@@ -10,7 +10,7 @@ DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
 SEARCH_MODEL = "gemini-2.0-flash"  # 検索用の軽量モデル
 
 # 共通の設定値
-RECIPE_DATABASE_ID = "recipe-database-id"
+RECIPE_DATABASE_ID = "1f79a940-1325-80d9-93c6-c33da454f18f"
 REQUIRED_TOOLS = "notion_create_recipe_page"
 ERROR_PREVENTION = (
     "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
@@ -37,6 +37,17 @@ AGENT_CONFIG = {
         "model": DEFAULT_MODEL,
         "prompt_key": "calculator",
         "description": "2つの数字を使って四則演算（足し算、引き算、掛け算、割り算）ができる計算エージェント",
+    },
+    # ファイルシステムエージェント
+    "filesystem": {
+        "name": "filesystem_agent",
+        "model": DEFAULT_MODEL,
+        "prompt_key": "filesystem", 
+        "description": (
+            "MCP Filesystem serverを使用してファイルシステム操作を実行します。"
+            "ファイルの読み書き、ディレクトリ操作、ファイル検索、"
+            "ファイル情報の取得などの包括的なファイル管理機能を提供します。"
+        ),
     },
     # URLレシピ関連エージェント
     "url_recipe": {
@@ -199,6 +210,7 @@ PROMPT_MAPPING = {
     "notion": "agents.notion.main",
     "root": "agents.root.main",
     "vision": "agents.vision.main",
+    "filesystem": "agents.filesystem.main",
 }
 
 # 従来のプロンプトファイルパス（フォールバック用）
@@ -217,6 +229,7 @@ LEGACY_PROMPT_FILES = {
     "notion": "notion.txt",
     "root": "root.txt",
     "vision": "vision.txt",
+    "filesystem": "filesystem.txt",
 }
 
 # デフォルトの画像分析プロンプト（フォールバック用）

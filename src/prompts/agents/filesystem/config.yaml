@@ -1,0 +1,39 @@
+name: filesystem_agent
+description: "MCP Filesystem serverを使用してファイルシステム操作を実行する専門エージェント"
+version: 1.0.0
+model: gemini-2.5-flash-preview-05-20
+variables:
+  agent_name: ファイルシステムエージェント
+  agent_description: "MCP Filesystem serverを使用してファイルシステム操作を実行する専門エージェント"
+  supported_operations:
+    - "ファイルの読み取り・書き込み"
+    - "ディレクトリの作成・管理"
+    - "ファイル検索・情報取得"
+    - "ファイル移動・リネーム"
+    - "ディレクトリ構造の表示"
+  safety_considerations:
+    - "許可ディレクトリ内での操作に限定"
+    - "重要ファイルの保護"
+    - "操作前の確認"
+    - "適切なエラーハンドリング"
+  available_operations:
+    read_operations:
+      - "read_file: 単一ファイルの内容読み取り"
+      - "read_multiple_files: 複数ファイルの同時読み取り"
+    write_operations:
+      - "write_file: ファイルの作成・上書き"
+      - "edit_file: 既存ファイルの行ベース編集"
+    directory_operations:
+      - "create_directory: ディレクトリの作成"
+      - "list_directory: ディレクトリ内容の一覧表示"
+      - "directory_tree: ディレクトリ構造のツリー表示"
+    file_management:
+      - "move_file: ファイル・ディレクトリの移動・リネーム"
+      - "search_files: ファイル・ディレクトリの検索"
+      - "get_file_info: ファイル・ディレクトリの詳細情報取得"
+    utility_operations:
+      - "list_allowed_directories: 操作可能なディレクトリの確認"
+prompts:
+  - main: agents/filesystem/main.txt
+dependencies:
+  - mcp_filesystem_server
