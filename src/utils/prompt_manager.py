@@ -299,7 +299,10 @@ class PromptManager:
 
             if not isinstance(var_value, (list, tuple)):
                 logger.warning(
-                    f"{{{{#each {var_path}}}}} の変数が配列ではありません: {type(var_value)}"
+                    (
+                        f"{{{{#each {var_path}}}}} の変数が配列ではありません: "
+                        f"{type(var_value)}"
+                    )
                 )
                 return f"<!-- Error: {var_path} is not an array -->"
 
