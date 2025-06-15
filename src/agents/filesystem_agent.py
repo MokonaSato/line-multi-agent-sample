@@ -25,22 +25,28 @@ class FilesystemAgentManager:
         """Filesystem MCP serverからツールを取得"""
         try:
             logger.info("Attempting to connect to MCP Filesystem server...")
-            
+
             # Filesystem MCP (localhost:8000) へSSEで接続
-            self.filesystem_tools, self.exit_stack = await MCPToolset.from_server(
-                connection_params=SseServerParams(url="http://localhost:8000/sse")
+            self.filesystem_tools, self.exit_stack = (
+                await MCPToolset.from_server(
+                    connection_params=SseServerParams(
+                        url="http://localhost:8000/sse"
+                    )
+                )
             )
-            
+
             logger.info("Filesystem MCP Toolset created successfully.")
             return self.filesystem_tools, self.exit_stack
-            
+
         except Exception as e:
             logger.error(f"Failed to connect to Filesystem MCP server: {e}")
             # フォールバック: 空のツールセット
             self.filesystem_tools = []
             return self.filesystem_tools, None
 
-    async def create_filesystem_agent(self, model: str = "gemini-2.5-flash-preview-05-20") -> LlmAgent:
+    async def create_filesystem_agent(
+        self, model: str = "gemini-2.5-flash-preview-05-20"
+    ) -> LlmAgent:
         """ファイルシステムエージェントを作成"""
         if self.filesystem_tools is None:
             await self.get_filesystem_tools()
@@ -48,6 +54,7 @@ class FilesystemAgentManager:
         # プロンプトファイルから指示書を読み込み
         try:
             from src.utils.prompt_manager import PromptManager
+
             prompt_manager = PromptManager()
             instruction = prompt_manager.get_prompt("agents.filesystem.main")
         except Exception as e:
@@ -108,7 +115,9 @@ class FilesystemAgentManager:
         if self.exit_stack:
             try:
                 await self.exit_stack.aclose()
-                logger.info("Filesystem agent resources cleaned up successfully.")
+                logger.info(
+                    "Filesystem agent resources cleaned up successfully."
+                )
             except Exception as e:
                 logger.error(f"Error during filesystem agent cleanup: {e}")
 
@@ -117,7 +126,9 @@ class FilesystemAgentManager:
 _filesystem_manager = FilesystemAgentManager()
 
 
-async def create_filesystem_agent(model: str = "gemini-2.5-flash-preview-05-20") -> LlmAgent:
+async def create_filesystem_agent(
+    model: str = "gemini-2.5-flash-preview-05-20",
+) -> LlmAgent:
     """ファイルシステムエージェントを作成（外部インターフェース）"""
     return await _filesystem_manager.create_filesystem_agent(model)
 

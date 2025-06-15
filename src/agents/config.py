@@ -42,7 +42,7 @@ AGENT_CONFIG = {
     "filesystem": {
         "name": "filesystem_agent",
         "model": DEFAULT_MODEL,
-        "prompt_key": "filesystem", 
+        "prompt_key": "filesystem",
         "description": (
             "MCP Filesystem serverを使用してファイルシステム操作を実行します。"
             "ファイルの読み書き、ディレクトリ操作、ファイル検索、"

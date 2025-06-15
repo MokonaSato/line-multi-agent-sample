@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from linebot.v3.webhooks import MessageEvent
@@ -22,6 +22,7 @@ from src.services.line_service import (
     LineClient,
     LineEventHandler,
 )
+from src.services.mcp_service import initialize_mcp_service
 from src.utils.logger import setup_logger
 
 # ロガーのセットアップ
@@ -39,28 +40,35 @@ executor = ThreadPoolExecutor(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPIのlifespan管理（強化版）"""
+    """FastAPIのlifespan管理（MCP統合版）"""
     # 起動時の処理
     logger.info("🚀 Starting application initialization")
 
     cleanup_tasks = []
 
     try:
+        # MCP サービスの初期化（最初に実行）
+        logger.info("Initializing MCP service...")
+        mcp_available = await initialize_mcp_service()
+        if mcp_available:
+            logger.info("✅ MCP service initialization completed")
+            app.state.mcp_available = True
+        else:
+            logger.warning(
+                "⚠️ MCP service is not available, continuing without it"
+            )
+            app.state.mcp_available = False
+
         # エージェントの初期化
         logger.info("Initializing AI agent...")
         await init_agent()
         cleanup_tasks.append(cleanup_resources)
         logger.info("✅ Agent initialization completed")
 
-        # その他の初期化処理があれば追加
-        # await init_database()
-        # cleanup_tasks.append(cleanup_database)
-
         logger.info("🎉 Application startup completed successfully")
 
     except Exception as e:
         logger.error(f"❌ Failed to initialize application: {e}")
-        # 部分的に初期化されたリソースをクリーンアップ
         for cleanup_func in reversed(cleanup_tasks):
             try:
                 await cleanup_func()
@@ -73,22 +81,12 @@ async def lifespan(app: FastAPI):
     finally:
         # 終了時の処理
         logger.info("🛑 Starting application shutdown")
-
-        # すべてのクリーンアップタスクを実行
         for cleanup_func in reversed(cleanup_tasks):
             try:
                 logger.info(f"Running cleanup: {cleanup_func.__name__}")
                 await cleanup_func()
             except Exception as e:
                 logger.error(f"Error during {cleanup_func.__name__}: {e}")
-
-        # スレッドプールの終了
-        try:
-            executor.shutdown(wait=True)
-            logger.info("✅ Thread pool executor shutdown completed")
-        except Exception as e:
-            logger.error(f"Error shutting down executor: {e}")
-
         logger.info("🏁 Application shutdown completed")
 
 
@@ -150,6 +148,33 @@ async def callback(request: Request):
     executor.submit(process_events, body_text, signature)
 
     return "OK"
+
+
+@app.get("/mcp/status")
+async def mcp_status():
+    """MCP サーバーの詳細ステータス"""
+    if not hasattr(app.state, "mcp_available") or not app.state.mcp_available:
+        raise HTTPException(
+            status_code=503, detail="MCP service is not available"
+        )
+
+    try:
+        from src.services.mcp_service import MCPFilesystemClient
+
+        async with MCPFilesystemClient() as client:
+            # 簡単なテスト実行
+            files = await client.list_directory("")
+
+        return {
+            "status": "available",
+            "server_type": "MCP Filesystem Server",
+            "root_files_count": len(files),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get MCP status: {e}")
+        raise HTTPException(
+            status_code=503, detail=f"MCP server error: {str(e)}"
+        )
 
 
 @app.get("/health")

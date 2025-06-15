@@ -1,0 +1,102 @@
+# Cloud Run サービス設定 (MCP統合版)
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: line-multi-agent
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cpu: "1000m"
+        run.googleapis.com/memory: "2Gi"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containers:
+      # メインアプリケーションコンテナ
+      - name: app
+        image: gcr.io/PROJECT_ID/line-multi-agent:latest
+        ports:
+        - containerPort: 8080
+          name: http1
+        env:
+        # 環境変数（.envファイルから読み込み）
+        - name: GOOGLE_API_KEY
+          value: "${GOOGLE_API_KEY}"
+        - name: NOTION_TOKEN
+          value: "${NOTION_TOKEN}"
+        - name: LINE_CHANNEL_ACCESS_TOKEN
+          value: "${LINE_CHANNEL_ACCESS_TOKEN}"
+        - name: LINE_CHANNEL_SECRET
+          value: "${LINE_CHANNEL_SECRET}"
+        # MCP 関連の環境変数
+        - name: MCP_SERVER_URL
+          value: "http://localhost:8081"
+        - name: MCP_ENABLED
+          value: "true"
+        # 共有ボリュームマウント
+        volumeMounts:
+        - name: shared-data
+          mountPath: /app/shared
+        - name: mcp-socket
+          mountPath: /tmp/mcp
+        resources:
+          limits:
+            cpu: "800m"
+            memory: "1.5Gi"
+          requests:
+            cpu: "400m"
+            memory: "1Gi"
+        
+      # MCP Filesystem Server サイドカー
+      - name: mcp-filesystem
+        image: mcp/filesystem:latest
+        env:
+        - name: MCP_TRANSPORT
+          value: "stdio"
+        # MCP Serverの許可ディレクトリ
+        args: ["/app/shared", "/tmp/mcp"]
+        volumeMounts:
+        - name: shared-data
+          mountPath: /app/shared
+        - name: mcp-socket
+          mountPath: /tmp/mcp
+        resources:
+          limits:
+            cpu: "200m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        # ヘルスチェック（シンプルなプロセス確認）
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pgrep -f 'node.*filesystem' > /dev/null"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pgrep -f 'node.*filesystem' > /dev/null"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      
+      # 共有ボリューム定義
+      volumes:
+      - name: shared-data
+        emptyDir:
+          sizeLimit: "1Gi"
+      - name: mcp-socket
+        emptyDir:
+          sizeLimit: "100Mi"
+      
+      # サービスアカウント
+      serviceAccountName: line-multi-agent-sa
