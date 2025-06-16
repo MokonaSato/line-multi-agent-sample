@@ -12,7 +12,7 @@ from linebot.v3.webhooks import (
     TextMessageContent,
 )
 
-from src.services.agent_service import (
+from src.services.agent_service_impl import (
     call_agent_async,
     call_agent_with_image_async,
 )

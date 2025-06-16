@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from linebot.v3.webhooks import MessageEvent
 
 # 内部モジュールからのインポート
-from src.services.agent_service import cleanup_resources, init_agent
+from src.services.agent_service_impl import cleanup_resources, init_agent
 from src.services.line_service import LineClient, LineEventHandler
 from src.tools.filesystem import initialize_filesystem_service
 from src.utils.logger import setup_logger
