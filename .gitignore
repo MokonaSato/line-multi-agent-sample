@@ -50,3 +50,8 @@ node_modules/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Backup files
+*.backup
+*.bak
+*.orig

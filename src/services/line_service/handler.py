@@ -51,7 +51,8 @@ class LineEventHandler:
         reply_token = event.reply_token
 
         logger.info(
-            f"Processing text message from {user_id}: {text_content.text}"
+            f"Processing text message from {user_id}: "
+            f"{text_content.text[:100]}..."
         )
 
         try:
@@ -64,6 +65,7 @@ class LineEventHandler:
 
             # 返信を送信
             self.line_client.reply_text(reply_token, reply_text)
+            logger.info(f"Successfully replied to {user_id}")
 
         except Exception as e:
             logger.exception(f"Error processing text message: {e}")

@@ -33,37 +33,23 @@ class AgentService:
     """エージェントサービスクラス
 
     エージェントとのやり取りを管理し、アプリケーションに一貫したインターフェースを提供します。
-    シングルトンパターンで実装されており、アプリケーション全体で同じインスタンスが使用されます。
     """
 
-    _instance = None
-
-    def __new__(cls):
-        """シングルトンインスタンスを作成または返却"""
-        if cls._instance is None:
-            cls._instance = super(AgentService, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """初期化（一度だけ実行）"""
-        if not self._initialized:
-            # サービス
-            self.session_service = InMemorySessionService()
-            self.artifacts_service = InMemoryArtifactService()
+        """初期化"""
+        # サービス
+        self.session_service = InMemorySessionService()
+        self.artifacts_service = InMemoryArtifactService()
 
-            # コンポーネントの初期化
-            self.session_manager = SessionManager(self.session_service)
-            self.message_handler = MessageHandler()
+        # コンポーネントの初期化
+        self.session_manager = SessionManager(self.session_service)
+        self.message_handler = MessageHandler()
 
-            # エージェント関連
-            self.root_agent = None
-            self.exit_stack = None
-            self.runner = None
-            self.executor = None
-
-            # 初期化完了
-            self._initialized = True
+        # エージェント関連
+        self.root_agent = None
+        self.exit_stack = None
+        self.runner = None
+        self.executor = None
 
     async def init_agent(self) -> None:
         """エージェントを初期化（必要時のみ実行）"""
@@ -185,11 +171,11 @@ class AgentService:
                 logger.error(f"Error during resource cleanup: {e}")
 
 
-# シングルトンインスタンスをエクスポート
+# グローバルサービスインスタンス
 _agent_service = AgentService()
 
 
-# 後方互換性のための関数インターフェース
+# 公開インターフェース関数
 async def init_agent():
     """エージェントを初期化する（一度だけ実行）"""
     await _agent_service.init_agent()
@@ -199,17 +185,7 @@ async def init_agent():
 async def call_agent_async(
     message: str, user_id: str, session_id: Optional[str] = None
 ) -> str:
-    """
-    エージェントにテキストメッセージを送信し、応答を返す
-
-    Args:
-        message: ユーザーからのメッセージ
-        user_id: ユーザーID
-        session_id: セッションID（未指定時は新規作成）
-
-    Returns:
-        エージェントからの応答文字列
-    """
+    """テキストメッセージをエージェントに送信し、応答を返す"""
     return await _agent_service.call_agent_text(message, user_id, session_id)
 
 
@@ -220,19 +196,7 @@ async def call_agent_with_image_async(
     user_id: str,
     session_id: Optional[str] = None,
 ) -> str:
-    """
-    エージェントに画像付きメッセージを送信し、応答を返す
-
-    Args:
-        message: ユーザーからのメッセージ
-        image_data: 画像のバイナリデータ
-        image_mime_type: 画像のMIMEタイプ（例: "image/jpeg"）
-        user_id: ユーザーID
-        session_id: セッションID（未指定時は新規作成）
-
-    Returns:
-        エージェントからの応答文字列
-    """
+    """画像付きメッセージをエージェントに送信し、応答を返す"""
     return await _agent_service.call_agent_with_image(
         message, image_data, image_mime_type, user_id, session_id
     )

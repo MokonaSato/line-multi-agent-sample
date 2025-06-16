@@ -6,7 +6,7 @@ description: ファイルシステムエージェント指示書
 extends: templates/agent_base.txt
 variables:
   agent_name: "ファイルシステムエージェント"
-  agent_description: "MCP Filesystem serverを使用してファイルシステム操作を実行する専門エージェント"
+  agent_description: "安全なファイルシステム操作を実行する専門エージェント"
   supported_operations:
     - "ファイルの読み取り・書き込み"
     - "ディレクトリの作成・管理"

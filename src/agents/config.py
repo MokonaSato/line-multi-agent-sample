@@ -44,9 +44,9 @@ AGENT_CONFIG = {
         "model": DEFAULT_MODEL,
         "prompt_key": "filesystem",
         "description": (
-            "MCP Filesystem serverを使用してファイルシステム操作を実行します。"
-            "ファイルの読み書き、ディレクトリ操作、ファイル検索、"
-            "ファイル情報の取得などの包括的なファイル管理機能を提供します。"
+            "ファイルシステムの操作を行います。ファイルの作成、読み込み、"
+            "削除、ディレクトリの管理などを安全に実行します。"
+            "作業ディレクトリ内でのみ操作可能です。"
         ),
     },
     # URLレシピ関連エージェント
@@ -230,6 +230,8 @@ LEGACY_PROMPT_FILES = {
     "root": "root.txt",
     "vision": "vision.txt",
     "filesystem": "filesystem.txt",
+    "main": "agents/root/main.txt",
+    "system": "core/system.txt",
 }
 
 # デフォルトの画像分析プロンプト（フォールバック用）

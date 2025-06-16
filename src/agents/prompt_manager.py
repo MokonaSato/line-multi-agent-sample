@@ -1,49 +1,30 @@
-"""プロンプト管理モジュール
+"""プロンプト管理モジュール（簡素化版）
 
 このモジュールはPromptManagerクラスを提供し、プロンプトの読み込みと管理を行います。
-従来のファイルベースのプロンプト読み込みと新しいフォーマットの両方をサポートします。
 """
 
 import os
 from typing import Dict
 
-from src.agents.config import (
-    DEFAULT_VISION_PROMPT,
-    LEGACY_PROMPT_FILES,
-    PROMPT_MAPPING,
-)
+from src.agents.config import DEFAULT_VISION_PROMPT, LEGACY_PROMPT_FILES
 from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger
 
 logger = setup_logger("prompt_manager")
 
 
-class PromptManagerSingleton:
-    """プロンプト管理用のシングルトンクラス
+class PromptManager:
+    """プロンプト管理クラス
 
-    プロンプトの読み込みと管理を一元的に行い、キャッシングによるパフォーマンス向上も図ります。
+    プロンプトの読み込みと管理を一元的に行います。
     """
 
-    _instance = None
-
-    def __new__(cls):
-        """シングルトンパターン実装"""
-        if cls._instance is None:
-            cls._instance = super(PromptManagerSingleton, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """初期化（シングルトンではインスタンス時に一度だけ実行）"""
-        if not self._initialized:
-            self._prompts_cache = {}
-            self._initialized = True
+        """初期化"""
+        self._prompts_cache = {}
 
     def get_all_prompts(self) -> Dict[str, str]:
         """すべてのプロンプトを一括で読み込む
-
-        新しい管理システムからプロンプトの読み込みを試み、失敗した場合は
-        従来の方法にフォールバックします。
 
         Returns:
             Dict[str, str]: キーとプロンプトテキストのディクショナリ
@@ -53,8 +34,12 @@ class PromptManagerSingleton:
 
         # すべてのプロンプトを読み込む
         prompts = {}
-        for key, prompt_path in PROMPT_MAPPING.items():
-            prompts[key] = self.get_prompt(key)
+        for key in LEGACY_PROMPT_FILES.keys():
+            try:
+                prompts[key] = self.get_prompt(key)
+            except Exception as e:
+                logger.error(f"プロンプト '{key}' の読み込みに失敗: {e}")
+                prompts[key] = f"Error loading {key}: {str(e)}"
 
         return prompts
 
@@ -62,7 +47,7 @@ class PromptManagerSingleton:
         """指定されたキーのプロンプトを取得
 
         Args:
-            key (str): プロンプトのキー
+            key: プロンプトのキー
 
         Returns:
             str: プロンプトテキスト
@@ -74,23 +59,7 @@ class PromptManagerSingleton:
         if key in self._prompts_cache:
             return self._prompts_cache[key]
 
-        # 新しいプロンプト管理システムから読み込み
-        if key in PROMPT_MAPPING:
-            try:
-                from src.utils.prompt_manager import PromptManager
-
-                manager = PromptManager()
-                prompt = manager.get_prompt(PROMPT_MAPPING[key])
-                self._prompts_cache[key] = prompt
-                logger.info(
-                    f"新しい管理システムから '{key}' プロンプトを読み込みました"
-                )
-                return prompt
-            except Exception as e:
-                logger.warning(
-                    f"新システムからの '{key}' プロンプト読み込みに失敗: {e}"
-                )
-                # 従来の方法で読み込みを試みる
+        # PROMPT_MAPPINGは廃止されました - 直接従来の方法で読み込みます
 
         # 従来の方法で読み込む
         if key in LEGACY_PROMPT_FILES:
@@ -118,7 +87,3 @@ class PromptManagerSingleton:
 
         # キーが見つからない場合
         raise ValueError(f"未知のプロンプトキー: {key}")
-
-
-# シングルトンインスタンスを公開
-PromptManager = PromptManagerSingleton

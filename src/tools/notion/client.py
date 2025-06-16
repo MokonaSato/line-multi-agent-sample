@@ -144,10 +144,9 @@ class NotionAPIClient:
                         wait_time = base_wait * jitter
 
                         logging.warning(
-                            f"一時的なエラー(HTTP {response.status_code})が発生。"(
-                                f"{wait_time:.1f}秒後にリトライします "
-                                f"(試行: {attempt}/{max_retries})"
-                            )
+                            f"一時的なエラー(HTTP {response.status_code})が発生。"
+                            f"{wait_time:.1f}秒後にリトライします "
+                            f"(試行: {attempt}/{max_retries})"
                         )
                         time.sleep(wait_time)
                         continue
@@ -186,10 +185,9 @@ class NotionAPIClient:
                         else "N/A"
                     )
                     logging.warning(
-                        f"API呼び出し中に一時的なエラーが発生(HTTP {status_code})。"(
-                            f"{wait_time:.1f}秒後にリトライします "
-                            f"(試行: {attempt}/{max_retries})"
-                        )
+                        f"API呼び出し中に一時的なエラーが発生(HTTP {status_code})。"
+                        f"{wait_time:.1f}秒後にリトライします "
+                        f"(試行: {attempt}/{max_retries})"
                     )
                     time.sleep(wait_time)
                 else:

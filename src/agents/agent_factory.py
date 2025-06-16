@@ -11,8 +11,8 @@ from google.adk.agents import Agent, SequentialAgent
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools import agent_tool, google_search
 
-from src.services.mcp_service import mcp_tools_list
 from src.tools.calculator_tools import calculator_tools_list
+from src.tools.filesystem import filesystem_tools
 from src.tools.notion import notion_tools_list
 from src.tools.web_tools import fetch_web_content
 from src.utils.logger import setup_logger
@@ -88,11 +88,15 @@ class AgentFactory:
             tools=[],  # 画像分析のみ
         )
 
-    def create_mcp_filesystem_agent(self) -> Agent:
-        """MCP Filesystem エージェントを作成（シンプルなエージェント）"""
-        return Agent(  # ← シンプルなAgent
-            name="mcp_filesystem_agent",
-            tools=mcp_tools_list,  # ← ツールのみ
+    def create_filesystem_agent(self) -> Agent:
+        """ファイルシステム操作エージェントを作成"""
+        cfg = self.config["filesystem"]
+        return Agent(
+            name=cfg["name"],
+            model=cfg["model"],
+            description=cfg["description"],
+            instruction=self.prompts[cfg["prompt_key"]],
+            tools=filesystem_tools,
         )
 
     def create_url_recipe_pipeline(self) -> SequentialAgent:
@@ -305,6 +309,7 @@ class AgentFactory:
             description=cfg["description"],
             tools=[
                 agent_tool.AgentTool(agent=sub_agents["google_search_agent"]),
+                fetch_web_content,
             ],
             sub_agents=[
                 sub_agents["calc_agent"],
@@ -313,6 +318,5 @@ class AgentFactory:
                 sub_agents["notion_agent"],
                 sub_agents["vision_agent"],
                 sub_agents["filesystem_agent"],
-                sub_agents["mcp_filesystem_agent"],
             ],
         )

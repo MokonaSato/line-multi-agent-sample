@@ -48,13 +48,9 @@ async def create_agent() -> Tuple[LlmAgent, AsyncExitStack]:
         prompt_manager = PromptManager()
         prompts = prompt_manager.get_all_prompts()
 
-        # ファクトリークラスを初期化
+        # ファクトリークラスを初期化してエージェントを作成
         factory = AgentFactory(prompts, AGENT_CONFIG)
-
-        # すべての標準エージェントを作成
         agents = factory.create_all_standard_agents()
-
-        # ルートエージェントを作成
         _root_agent = factory.create_root_agent(agents)
 
         logger.info("ルートエージェントの作成に成功しました")
