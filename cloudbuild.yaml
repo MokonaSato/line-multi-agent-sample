@@ -12,8 +12,8 @@ steps:
     - '--region=asia-northeast1'
     - '--platform=managed'
     - '--allow-unauthenticated'
-    - '--cpu=800m'
-    - '--memory=1Gi'
+    - '--cpu=1'
+    - '--memory=2Gi'
     - '--port=8080'
 images:
 - 'gcr.io/$PROJECT_ID/line-multi-agent:$BUILD_ID'
