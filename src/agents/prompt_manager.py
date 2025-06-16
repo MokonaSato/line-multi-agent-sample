@@ -1,47 +1,145 @@
-"""プロンプト管理モジュール（簡素化版）
+"""シンプルなプロンプト管理モジュール
 
-このモジュールはPromptManagerクラスを提供し、プロンプトの読み込みと管理を行います。
+複雑なテンプレート継承システムを排除し、直接的なファイル読み込みのみを行う
+シンプルなプロンプト管理システムです。基本的な変数置換機能も提供します。
 """
 
 import os
+import re
 from typing import Dict
 
-from src.agents.config import DEFAULT_VISION_PROMPT, LEGACY_PROMPT_FILES
 from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger
 
 logger = setup_logger("prompt_manager")
 
+# プロンプトファイルの直接マッピング（実際のファイルパス）
+PROMPT_FILE_MAPPING = {
+    # エージェント用プロンプト
+    "root": "agents/root/main.txt",
+    "calculator": "agents/calculator/main.txt",
+    "filesystem": "agents/filesystem/main.txt",
+    "notion": "agents/notion/main.txt",
+    "vision": "agents/vision/main.txt",
+    # URLレシピワークフロー
+    "recipe_extraction": "workflows/recipe/url_extraction/extraction.txt",
+    "data_transformation": (
+        "workflows/recipe/url_extraction/transformation.txt"
+    ),
+    "recipe_notion": "workflows/recipe/url_extraction/notion.txt",
+    "recipe_workflow": "workflows/recipe/url_extraction/workflow.txt",
+    # 画像レシピワークフロー
+    "image_analysis": "workflows/recipe/image_extraction/analysis.txt",
+    "image_data_enhancement": (
+        "workflows/recipe/image_extraction/enhancement.txt"
+    ),
+    "image_notion": "workflows/recipe/image_extraction/notion.txt",
+    "image_workflow": "workflows/recipe/image_extraction/workflow.txt",
+    # システム・共通プロンプト
+    "main": "agents/root/main.txt",  # メインとルートは同じ
+    "system": "core/system.txt",
+}
+
+# 基本的な変数置換用のデフォルト値
+DEFAULT_VARIABLES = {
+    "agent_name": "root_agent",
+    "basic_principles": "ユーザーの質問に正確かつ丁寧に答えます。",
+    "available_tools": "利用可能なツールを活用して最適な支援を提供します。",
+    "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
+    "required_tools": "notion_create_recipe_page",
+    "error_prevention": (
+        "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+    ),
+    "recipe_extraction_desc": (
+        "URLからレシピを抽出してNotionデータベースに登録します。"
+    ),
+    "image_recipe_extraction_desc": (
+        "画像からレシピを抽出してNotionデータベースに登録します。"
+    ),
+    "workflow_descriptions": {
+        "recipe_extraction": (
+            "URLからレシピを抽出してNotionデータベースに登録します。"
+        ),
+        "image_recipe_extraction": (
+            "画像からレシピを抽出してNotionデータベースに登録します。"
+        ),
+    },
+}
+
+# デフォルトのビジョンプロンプト
+DEFAULT_VISION_PROMPT = """
+あなたは画像認識の専門家です。画像を分析して詳細な情報を抽出します。
+
+## 基本動作
+- 画像の内容を正確に説明してください
+- 見えるもののみを報告し、推測は避けてください
+- 必要に応じて詳細な分析を提供してください
+
+## 対応する画像タイプ
+- 料理写真
+- 製品画像
+- スクリーンショット
+- 図表
+- 文書画像
+
+画像の内容について何でもお聞きください。
+"""
+
 
 class PromptManager:
-    """プロンプト管理クラス
+    """シンプルなプロンプト管理クラス
 
-    プロンプトの読み込みと管理を一元的に行います。
+    テンプレート継承なしの直接的なファイル読み込みのみを行います。
+    基本的な変数置換機能も提供します。
     """
 
     def __init__(self):
         """初期化"""
-        self._prompts_cache = {}
+        self.prompts_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "prompts"
+        )
+        self._cache = {}
 
-    def get_all_prompts(self) -> Dict[str, str]:
-        """すべてのプロンプトを一括で読み込む
+    def _replace_variables(self, prompt: str) -> str:
+        """プロンプト内の変数を置換
+
+        Args:
+            prompt: 変数を含むプロンプトテキスト
 
         Returns:
-            Dict[str, str]: キーとプロンプトテキストのディクショナリ
+            str: 変数置換済みのプロンプトテキスト
         """
-        # キャッシュをクリア（確実に最新を読み込むため）
-        self._prompts_cache = {}
+        # 基本的な{{variable}}形式の変数を置換
+        for var_name, var_value in DEFAULT_VARIABLES.items():
+            if isinstance(var_value, dict):
+                # ネストされた辞書の場合
+                for nested_key, nested_value in var_value.items():
+                    pattern = f"{{{{{var_name}.{nested_key}}}}}"
+                    prompt = prompt.replace(pattern, str(nested_value))
+            else:
+                pattern = f"{{{{{var_name}}}}}"
+                prompt = prompt.replace(pattern, str(var_value))
 
-        # すべてのプロンプトを読み込む
-        prompts = {}
-        for key in LEGACY_PROMPT_FILES.keys():
-            try:
-                prompts[key] = self.get_prompt(key)
-            except Exception as e:
-                logger.error(f"プロンプト '{key}' の読み込みに失敗: {e}")
-                prompts[key] = f"Error loading {key}: {str(e)}"
+        # {{override: ...}} と {{/override}} の間のブロックを削除（簡易実装）
+        prompt = re.sub(
+            r"\{\{override:.*?\}\}.*?\{\{/override\}\}",
+            "",
+            prompt,
+            flags=re.DOTALL,
+        )
 
-        return prompts
+        # {{block: ...}} と {{/block}} の間のブロックを削除（簡易実装）
+        prompt = re.sub(
+            r"\{\{block:.*?\}\}(.*?)\{\{/block\}\}",
+            r"\1",
+            prompt,
+            flags=re.DOTALL,
+        )
+
+        # メタデータセクション（---で囲まれた部分）を削除
+        prompt = re.sub(r"^---.*?---\n", "", prompt, flags=re.DOTALL)
+
+        return prompt.strip()
 
     def get_prompt(self, key: str) -> str:
         """指定されたキーのプロンプトを取得
@@ -50,40 +148,63 @@ class PromptManager:
             key: プロンプトのキー
 
         Returns:
-            str: プロンプトテキスト
+            str: プロンプトテキスト（変数置換済み）
 
         Raises:
             ValueError: 指定されたキーが存在しない場合
         """
         # キャッシュに存在すればそれを返す
-        if key in self._prompts_cache:
-            return self._prompts_cache[key]
+        if key in self._cache:
+            return self._cache[key]
 
-        # PROMPT_MAPPINGは廃止されました - 直接従来の方法で読み込みます
+        # マッピングから実際のファイルパスを取得
+        if key not in PROMPT_FILE_MAPPING:
+            raise ValueError(f"未知のプロンプトキー: {key}")
 
-        # 従来の方法で読み込む
-        if key in LEGACY_PROMPT_FILES:
-            prompts_dir = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "prompts"
-            )
-            file_path = os.path.join(prompts_dir, LEGACY_PROMPT_FILES[key])
-            try:
-                prompt = read_prompt_file(file_path)
-                self._prompts_cache[key] = prompt
-                logger.info(f"従来の方法で '{key}' プロンプトを読み込みました")
-                return prompt
-            except Exception as e:
-                logger.error(
-                    f"プロンプトファイル '{LEGACY_PROMPT_FILES[key]}' の読み込みに失敗: {e}"
+        file_path = os.path.join(self.prompts_dir, PROMPT_FILE_MAPPING[key])
+
+        try:
+            prompt = read_prompt_file(file_path)
+            # 基本的な変数置換を実行
+            prompt = self._replace_variables(prompt)
+            self._cache[key] = prompt
+            logger.info(f"プロンプト '{key}' を正常に読み込みました")
+            return prompt
+        except FileNotFoundError:
+            logger.error(f"プロンプトファイルが見つかりません: {file_path}")
+            # ビジョンプロンプトには特別なデフォルト値を設定
+            if key == "vision":
+                self._cache[key] = DEFAULT_VISION_PROMPT
+                return DEFAULT_VISION_PROMPT
+            else:
+                error_msg = (
+                    f"Error: プロンプトファイル '{key}' が見つかりません"
                 )
-                # 特定のプロンプトにデフォルト値を設定
-                if key == "vision":
-                    self._prompts_cache[key] = DEFAULT_VISION_PROMPT
-                    return DEFAULT_VISION_PROMPT
-                else:
-                    error_msg = f"Error loading prompt: {str(e)}"
-                    self._prompts_cache[key] = error_msg
-                    return error_msg
+                self._cache[key] = error_msg
+                return error_msg
+        except Exception as e:
+            logger.error(f"プロンプト '{key}' の読み込みに失敗: {e}")
+            error_msg = f"Error loading prompt: {str(e)}"
+            self._cache[key] = error_msg
+            return error_msg
 
-        # キーが見つからない場合
-        raise ValueError(f"未知のプロンプトキー: {key}")
+    def get_all_prompts(self) -> Dict[str, str]:
+        """すべてのプロンプトを一括で読み込む
+
+        Returns:
+            Dict[str, str]: キーとプロンプトテキストのディクショナリ
+        """
+        prompts = {}
+        for key in PROMPT_FILE_MAPPING.keys():
+            try:
+                prompts[key] = self.get_prompt(key)
+            except Exception as e:
+                logger.error(f"プロンプト '{key}' の読み込みに失敗: {e}")
+                prompts[key] = f"Error loading {key}: {str(e)}"
+
+        return prompts
+
+    def reload_cache(self):
+        """キャッシュをクリアして再読み込み"""
+        self._cache.clear()
+        logger.info("プロンプトキャッシュをクリアしました")
