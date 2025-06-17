@@ -47,6 +47,20 @@ DEFAULT_VARIABLES = {
     "available_tools": "利用可能なツールを活用して最適な支援を提供します。",
     "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
     "required_tools": "notion_create_recipe_page",
+    "required_fields": "名前、材料、手順",
+    "target_format": "Notion データベース形式",
+    "primary_tool": "notion_create_recipe_page",
+    "forbidden_tools": "notion_create_page, create",
+    "error_prevention_rule": (
+        "汎用ツールを使用すると「missing required parameters」エラーが発生します"
+    ),
+    "agent_description": "Notionデータベースに対する操作を行う専門エージェント",
+    "optional_fields": "人数、調理時間、保存期間、URL",
+    "validation_rules": "必須パラメータの存在チェック、データ型の検証、文字列の長さチェック",
+    "notion_token_env": "NOTION_TOKEN",
+    "required_params": "名前、材料、手順",
+    "recipe_tool": "notion_create_recipe_page",
+    "generic_tools": "notion_create_page, create",
     "error_prevention": (
         "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
     ),
@@ -56,6 +70,32 @@ DEFAULT_VARIABLES = {
     "image_recipe_extraction_desc": (
         "画像からレシピを抽出してNotionデータベースに登録します。"
     ),
+    # テンプレート変数を追加
+    "extraction_type": "レシピ情報",
+    "extraction_description": "レシピ抽出の専門家",
+    "source_type": "Webページ",
+    "extraction_targets": "レシピの名前、材料、手順",
+    "extraction_process": "Webページを解析してレシピ情報を抽出します",
+    "output_format": "JSON形式での構造化データ",
+    "special_processing_rules": "料理に関する専門知識を活用します",
+    # パイプライン変数を追加
+    "pipeline_name": "ImageRecipePipeline",
+    "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
+    # デフォルト値を追加
+    "default_values": {
+        "name": "不明なレシピ",
+        "ingredients": "材料情報なし",
+        "instructions": "調理手順なし",
+    },
+    # Notion制限値を追加
+    "notion_limits": {
+        "rich_text_max": "2000",
+    },
+    # システムプロンプト変数を追加
+    "ai_role": "高性能AIアシスタント",
+    "system_purpose": "様々なタスクを実行する様々な専門エージェントの基盤",
+    "supported_languages": "日本語、英語",
+    "primary_language": "日本語",
     "workflow_descriptions": {
         "recipe_extraction": (
             "URLからレシピを抽出してNotionデータベースに登録します。"
