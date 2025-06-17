@@ -96,6 +96,25 @@ DEFAULT_VARIABLES = {
     "system_purpose": "様々なタスクを実行する様々な専門エージェントの基盤",
     "supported_languages": "日本語、英語",
     "primary_language": "日本語",
+    # ワークフロー専用変数を追加
+    "input_context": "extracted_recipe_data",
+    "input_data_key": "extracted_image_data",
+    "output_format_key": "enhanced_recipe_data",
+    "fidelity_principle": "画像から確認できた情報のみをもとに整理",
+    "image_fidelity_principle": "画像から確認できた情報のみを忠実に登録",
+    "forbidden_actions": [
+        "見えない材料の推測による追加",
+        "一般的な知識による手順の補完",
+        "数値項目の推測値設定",
+        "創作的な料理名の付与"
+    ],
+    # テンプレートシステム変数
+    "workflow_name": "レシピ処理ワークフロー",
+    "workflow_description": "レシピ情報を処理するワークフローを管理するエージェント",
+    "pipeline_steps": "1. データ抽出 → 2. データ変換 → 3. Notion登録",
+    "error_prevention_strategy": "各ステップでデータ検証を実行し、エラーを未然に防ぐ",
+    "success_criteria": "Notionデータベースにレシピが正常に登録されること",
+    "failure_handling": "エラー発生時は詳細なエラーメッセージをユーザーに提供",
     "workflow_descriptions": {
         "recipe_extraction": (
             "URLからレシピを抽出してNotionデータベースに登録します。"

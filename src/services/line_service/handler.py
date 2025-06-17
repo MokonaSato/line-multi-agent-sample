@@ -61,6 +61,12 @@ class LineEventHandler:
                 text_content.text,
                 user_id=user_id,
             )
+            # reply_textが文字列であることを確認
+            if isinstance(reply_text, list):
+                reply_text = "\n".join(str(item) for item in reply_text)
+            elif not isinstance(reply_text, str):
+                reply_text = str(reply_text)
+
             reply_text = reply_text.rstrip("\n")
 
             # 返信を送信

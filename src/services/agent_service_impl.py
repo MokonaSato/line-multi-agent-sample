@@ -82,6 +82,7 @@ INTERMEDIATE_PATTERNS = [
 # エージェント設定
 MIN_FINAL_RESPONSE_LENGTH = 50
 MIN_STEPS_FOR_SEQUENTIAL = 2
+MAX_SESSION_HISTORY_SIZE = 10  # セッション履歴の最大保持数
 
 
 class AgentService:
@@ -149,9 +150,24 @@ class AgentService:
                 app_name=APP_NAME, user_id=user_id, session_id=session_id
             )
         else:
+            # セッション履歴のサイズをチェックして制限
+            self._limit_session_history(session)
             logger.debug(f"Using existing session: {session_id}")
 
         return session_id
+
+    def _limit_session_history(self, session: Session) -> None:
+        """セッション履歴のサイズを制限
+
+        Args:
+            session: セッションオブジェクト
+        """
+        if session.history and len(session.history) > MAX_SESSION_HISTORY_SIZE:
+            # 古い履歴を削除（最新のものを保持）
+            session.history = session.history[-MAX_SESSION_HISTORY_SIZE:]
+            logger.info(
+                f"Session history limited to {MAX_SESSION_HISTORY_SIZE} items"
+            )
 
     def _get_session(self, user_id: str, session_id: str) -> Optional[Session]:
         """セッションを取得（内部メソッド）"""
@@ -371,7 +387,7 @@ class AgentService:
         # 中間応答の場合はスキップ
         if self.is_intermediate_response(author, content_text):
             logger.debug(f"Skipping intermediate response from {author}")
-            return all_responses, all_responses, sequential_step_count
+            return None, all_responses, sequential_step_count
 
         # Sequential Agentのステップカウント
         if "SequentialAgent" in author:
