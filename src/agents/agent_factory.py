@@ -13,7 +13,7 @@ from google.adk.tools import agent_tool, google_search
 
 from src.tools.calculator_tools import calculator_tools_list
 from src.tools.filesystem import filesystem_tools
-from src.tools.notion import notion_tools_list
+from src.tools.notion import notion_tools_combined
 from src.tools.web_tools import fetch_web_content
 from src.utils.logger import setup_logger
 
@@ -73,7 +73,7 @@ class AgentFactory:
             model=cfg["model"],
             instruction=self.prompts[cfg["prompt_key"]],
             description=cfg["description"],
-            tools=notion_tools_list,
+            tools=notion_tools_combined,
             output_key=cfg.get("output_key"),
         )
 
@@ -154,7 +154,7 @@ class AgentFactory:
             model=register_cfg["model"],
             instruction=register_instruction,
             description=register_cfg["description"],
-            tools=notion_tools_list,
+            tools=notion_tools_combined,
             output_key=register_cfg["output_key"],
         )
 
@@ -209,7 +209,7 @@ class AgentFactory:
             model=register_cfg["model"],
             instruction=self.prompts[register_cfg["prompt_key"]],
             description=register_cfg["description"],
-            tools=notion_tools_list,
+            tools=notion_tools_combined,
             output_key=register_cfg["output_key"],
         )
 

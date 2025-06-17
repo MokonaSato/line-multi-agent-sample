@@ -11,9 +11,9 @@ SEARCH_MODEL = "gemini-2.0-flash"  # 検索用の軽量モデル
 
 # 共通の設定値
 RECIPE_DATABASE_ID = "1f79a940-1325-80d9-93c6-c33da454f18f"
-REQUIRED_TOOLS = "notion_create_recipe_page"
+REQUIRED_TOOLS = "notion_create_page_mcp"  # MCP Serverツールに変更
 ERROR_PREVENTION = (
-    "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
+    "MCP Server接続エラーを防ぐため、内部でMCPサーバー連携ツールを使用"
 )
 
 # エージェント設定
@@ -72,13 +72,13 @@ AGENT_CONFIG = {
             },
         },
         "registration_agent": {
-            "name": "NotionRegistrationAgent",
+            "name": "NotionMCPRegistrationAgent",
             "model": DEFAULT_MODEL,
             "prompt_key": "recipe_notion",
             "description": (
-                "変換されたデータをNotion データベースに登録します。"
-                f"必ず{REQUIRED_TOOLS}ツールを使用し、"
-                "missing required parametersエラーを防ぎます。"
+                "変換されたデータをNotion MCP Server経由でNotion データベースに登録します。"
+                f"優先的に{REQUIRED_TOOLS}ツール（MCP Server）を使用し、"
+                "MCP Server接続エラーを防ぎます。"
             ),
             "output_key": "registration_result",
             "variables": {
@@ -123,13 +123,13 @@ AGENT_CONFIG = {
             "output_key": "enhanced_recipe_data",
         },
         "registration_agent": {
-            "name": "RecipeNotionAgent",
+            "name": "RecipeNotionMCPAgent",
             "model": DEFAULT_MODEL,
             "prompt_key": "image_notion",
             "description": (
-                "強化されたレシピデータを料理レシピデータベースに登録します。"
-                f"必ず{REQUIRED_TOOLS}ツールを使用し、"
-                "missing required parametersエラーを防ぎます。"
+                "強化されたレシピデータをNotion MCP Server経由で料理レシピデータベースに登録します。"
+                f"優先的に{REQUIRED_TOOLS}ツール（MCP Server）を使用し、"
+                "MCP Server接続エラーを防ぎます。"
             ),
             "output_key": "registration_result",
             "variables": {
@@ -166,15 +166,15 @@ AGENT_CONFIG = {
     },
     # Notionエージェント
     "notion": {
-        "name": "NotionRegistrationAgent",
+        "name": "NotionMCPAgent",
         "model": DEFAULT_MODEL,
         "prompt_key": "notion",
         "description": (
-            "Notionワークスペースの包括的な操作を行うエージェントです。"
+            "Notion MCP Serverを通じてNotionワークスペースの包括的な操作を行うエージェントです。"
             "レシピの登録、検索、閲覧、管理を含む全般的なNotion関連タスクに対応します。"
             "レシピデータベースの操作（登録・検索・一覧表示）、"
             "ページやデータベースの検索・作成・更新、およびコンテンツの管理を行います。"
-            f"レシピ登録の場合は必ず{REQUIRED_TOOLS}ツールを使用し、"
+            f"レシピ登録の場合は優先的に{REQUIRED_TOOLS}ツール（MCP Server経由）を使用し、"
             "レシピ検索の場合は適切な検索ツールを使用します。"
         ),
         "output_key": "registration_result",

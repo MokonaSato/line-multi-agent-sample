@@ -25,6 +25,14 @@ from src.tools.notion.filter_utils import (  # noqa: F401
     build_title_filter,
     safe_query_with_fallback,
 )
+
+# Notion MCP ツール（新規追加）
+from src.tools.notion.mcp_tools import (
+    notion_create_page_mcp,
+    notion_query_database_mcp,
+    notion_retrieve_page_mcp,
+    notion_update_page_mcp,
+)
 from src.tools.notion.recipes import create as create_recipe
 from src.tools.notion.recipes import get_all as get_all_recipes
 from src.tools.notion.recipes import search_by_name as search_recipes_by_name
@@ -48,31 +56,34 @@ notion_create_recipe_page = create_recipe
 notion_search_recipes_by_name = search_recipes_by_name
 notion_get_all_recipes = get_all_recipes
 
-# ADK用ツール関数のマッピング - notion_create_recipe_pageを優先配置
-notion_tools_list = [
-    # レシピ専用ツール（優先）
-    notion_create_recipe_page,
+# ADK用ツール関数のマッピング - Notion MCP Serverツールを優先
+notion_tools_combined = [
+    # MCP Server ツール（優先）
+    notion_create_page_mcp,
+    notion_query_database_mcp,
+    notion_retrieve_page_mcp,
+    notion_update_page_mcp,
+    # 従来のレシピ専用ツール（互換性維持）
     notion_search_recipes_by_name,
     notion_get_all_recipes,
-    # 汎用ツール
+    # 他の必要な従来ツール
     notion_search,
-    notion_get_page,
-    notion_create_page,
-    notion_update_page,
-    notion_query_database,
-    notion_get_database,
-    notion_create_database,
-    notion_get_block_children,
-    notion_append_block_children,
     notion_get_users,
-    notion_create_comment,
 ]
 
 # カテゴリー別ツールマッピング（今後の拡張用）
 TOOLS = {
-    "search": [notion_search],
-    "pages": [notion_get_page, notion_create_page, notion_update_page],
+    "search": [notion_search, notion_query_database_mcp],
+    "pages": [
+        notion_create_page_mcp,
+        notion_retrieve_page_mcp,
+        notion_update_page_mcp,
+        notion_get_page,
+        notion_create_page,
+        notion_update_page,
+    ],
     "databases": [
+        notion_query_database_mcp,
         notion_query_database,
         notion_get_database,
         notion_create_database,
@@ -81,7 +92,7 @@ TOOLS = {
     "users": [notion_get_users],
     "comments": [notion_create_comment],
     "recipes": [
-        notion_create_recipe_page,
+        notion_create_page_mcp,  # MCPツールでレシピ作成
         notion_search_recipes_by_name,
         notion_get_all_recipes,
     ],
