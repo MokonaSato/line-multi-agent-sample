@@ -6,7 +6,9 @@
 
 import os
 import re
-from typing import Dict
+from typing import Dict, Optional
+
+import yaml
 
 from src.utils.file_utils import read_prompt_file
 from src.utils.logger import setup_logger
@@ -83,6 +85,7 @@ DEFAULT_VARIABLES = {
     # パイプライン変数を追加
     "pipeline_name": "ImageRecipePipeline",
     "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
+    "analysis_principle": "画像から実際に確認できる情報のみ",
     # デフォルト値を追加
     "default_values": {
         "name": "不明なレシピ",
@@ -162,17 +165,49 @@ class PromptManager:
         )
         self._cache = {}
 
-    def _replace_variables(self, prompt: str) -> str:
-        """プロンプト内の変数を置換
+    def _extract_file_variables(self, content: str) -> Dict[str, str]:
+        """ファイル内のYAMLメタデータから変数を抽出
+
+        Args:
+            content: ファイルの内容
+
+        Returns:
+            Dict[str, str]: 変数名と値のディクショナリ
+        """
+        variables = {}
+
+        # YAMLメタデータセクションを抽出
+        yaml_match = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
+        if yaml_match:
+            try:
+                yaml_content = yaml_match.group(1)
+                yaml_data = yaml.safe_load(yaml_content)
+
+                if isinstance(yaml_data, dict) and "variables" in yaml_data:
+                    file_variables = yaml_data["variables"]
+                    if isinstance(file_variables, dict):
+                        for key, value in file_variables.items():
+                            variables[key] = str(value)
+
+            except (yaml.YAMLError, AttributeError) as e:
+                logger.warning(f"YAML解析中にエラー: {e}")
+
+        return variables
+
+    def _replace_variables_with_dict(
+        self, prompt: str, variables: Dict[str, str]
+    ) -> str:
+        """辞書を使用して変数を置換
 
         Args:
             prompt: 変数を含むプロンプトテキスト
+            variables: 変数辞書
 
         Returns:
             str: 変数置換済みのプロンプトテキスト
         """
         # 基本的な{{variable}}形式の変数を置換
-        for var_name, var_value in DEFAULT_VARIABLES.items():
+        for var_name, var_value in variables.items():
             if isinstance(var_value, dict):
                 # ネストされた辞書の場合
                 for nested_key, nested_value in var_value.items():
@@ -182,10 +217,10 @@ class PromptManager:
                 pattern = f"{{{{{var_name}}}}}"
                 prompt = prompt.replace(pattern, str(var_value))
 
-        # {{override: ...}} と {{/override}} の間のブロックを削除（簡易実装）
+        # {{override: ...}} と {{/override}} の間のブロックの内容を展開（簡易実装）
         prompt = re.sub(
-            r"\{\{override:.*?\}\}.*?\{\{/override\}\}",
-            "",
+            r"\{\{override:.*?\}\}(.*?)\{\{/override\}\}",
+            r"\1",
             prompt,
             flags=re.DOTALL,
         )
@@ -198,16 +233,34 @@ class PromptManager:
             flags=re.DOTALL,
         )
 
-        # メタデータセクション（---で囲まれた部分）を削除
-        prompt = re.sub(r"^---.*?---\n", "", prompt, flags=re.DOTALL)
+        # YAMLメタデータセクション（先頭の---で囲まれた部分）のみを削除
+        if prompt.startswith("---\n"):
+            # 最初の --- から次の --- までを削除
+            parts = prompt.split("---\n", 2)
+            if len(parts) >= 3:
+                prompt = parts[2]  # メタデータ後の本文のみを保持
 
         return prompt.strip()
 
-    def get_prompt(self, key: str) -> str:
+    def _replace_variables(self, prompt: str) -> str:
+        """プロンプト内の変数を置換（後方互換性のため）
+
+        Args:
+            prompt: 変数を含むプロンプトテキスト
+
+        Returns:
+            str: 変数置換済みのプロンプトテキスト
+        """
+        return self._replace_variables_with_dict(prompt, DEFAULT_VARIABLES)
+
+    def get_prompt(
+        self, key: str, custom_variables: Optional[Dict[str, str]] = None
+    ) -> str:
         """指定されたキーのプロンプトを取得
 
         Args:
             key: プロンプトのキー
+            custom_variables: エージェント固有の変数（オプション）
 
         Returns:
             str: プロンプトテキスト（変数置換済み）
@@ -215,9 +268,15 @@ class PromptManager:
         Raises:
             ValueError: 指定されたキーが存在しない場合
         """
-        # キャッシュに存在すればそれを返す
-        if key in self._cache:
-            return self._cache[key]
+        # カスタム変数がある場合はキャッシュを使用しない
+        cache_key = (
+            key
+            if not custom_variables
+            else f"{key}_{hash(frozenset(custom_variables.items()))}"
+        )
+
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
         # マッピングから実際のファイルパスを取得
         if key not in PROMPT_FILE_MAPPING:
@@ -227,9 +286,21 @@ class PromptManager:
 
         try:
             prompt = read_prompt_file(file_path)
-            # 基本的な変数置換を実行
-            prompt = self._replace_variables(prompt)
-            self._cache[key] = prompt
+
+            # ファイル内の変数を抽出
+            file_variables = self._extract_file_variables(prompt)
+
+            # 基本的な変数置換を実行（ファイル変数を優先）
+            all_variables = {**DEFAULT_VARIABLES, **file_variables}
+            prompt = self._replace_variables_with_dict(prompt, all_variables)
+
+            # カスタム変数がある場合は追加で置換
+            if custom_variables:
+                for var_name, var_value in custom_variables.items():
+                    pattern = f"{{{{{var_name}}}}}"
+                    prompt = prompt.replace(pattern, str(var_value))
+
+            self._cache[cache_key] = prompt
             logger.info(f"プロンプト '{key}' を正常に読み込みました")
             return prompt
         except FileNotFoundError:

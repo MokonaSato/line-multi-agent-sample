@@ -19,29 +19,33 @@ spec:
       containers:
       # メインのLINE Multi-Agentアプリケーション
       - name: line-multi-agent
-        image: gcr.io/PROJECT_ID/line-multi-agent:BUILD_ID
+        image: gcr.io/gen-lang-client-0075173573/line-multi-agent:latest
         ports:
         - containerPort: 8080
           name: http1
         env:
         - name: GOOGLE_CLOUD_PROJECT
-          value: "PROJECT_ID"
+          value: "gen-lang-client-0075173573"
         - name: PYTHONPATH
           value: "/app"
         - name: NOTION_MCP_URL
           value: "http://localhost:3001/sse"
         - name: FILESYSTEM_MCP_URL
           value: "http://localhost:8000/sse"
+        - name: MCP_ENABLED
+          value: "true"
+        - name: MCP_TIMEOUT_SECONDS
+          value: "30"
         resources:
           limits:
             cpu: "1"
             memory: "1.5Gi"
-      # Filesystem MCP Server サイドカー（supergateayでHTTPラッパー）
+      # Filesystem MCP Server サイドカー（supergateayでSSE対応）
       - name: filesystem-mcp-server
         image: node:20-alpine
         env:
         - name: PORT
-          value: "3000"
+          value: "8000"
         command: ["/bin/sh"]
         args:
         - -c
@@ -49,13 +53,13 @@ spec:
           set -e
           echo "Installing Filesystem MCP Server and supergateway..."
           npm install -g @modelcontextprotocol/server-filesystem supergateway
-          echo "Starting Filesystem MCP Server with supergateway on port 3000..."
-          exec npx supergateway --stdio "npx @modelcontextprotocol/server-filesystem /tmp" --port 3000 --healthEndpoint /health
+          echo "Starting Filesystem MCP Server with supergateway on port 8000..."
+          exec npx supergateway --stdio "npx @modelcontextprotocol/server-filesystem /tmp" --port 8000 --healthEndpoint /health
         resources:
           limits:
             cpu: "0.25"
             memory: "256Mi"
-      # Notion MCP Server サイドカー（supergateayでHTTPラッパー）
+      # Notion MCP Server サイドカー（supergateayでSSE対応）
       - name: notion-mcp-server
         image: node:20-alpine
         env:

@@ -9,7 +9,7 @@ from contextlib import AsyncExitStack
 from typing import Optional, Tuple
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseServerParams
-from google.adk.tools.toolbox_tool import ToolboxTool
+# from google.adk.tools.toolbox_tool import ToolboxTool  # 依存関係なしのため無効化
 
 from src.utils.logger import setup_logger
 
@@ -39,19 +39,11 @@ async def get_notion_mcp_tools_async() -> Tuple[MCPToolset, AsyncExitStack]:
     except Exception as e:
         logger.warning(f"SSE connection failed: {e}")
 
-    # フォールバック: ToolboxToolを試行
-    try:
-        logger.info("Attempting to connect via ToolboxTool...")
-        toolbox = ToolboxTool(NOTION_HTTP_URL)
-        toolset = toolbox.get_toolset(toolset_name="notion_toolset")
-        logger.info("Notion MCP Toolset created successfully via ToolboxTool.")
-        return toolset, AsyncExitStack()
-    except Exception as e:
-        logger.error(f"Failed to connect via ToolboxTool: {e}")
-        raise RuntimeError(
-            f"Notion MCP Server接続失敗: SSE ({NOTION_MCP_URL}) と "
-            f"HTTP ({NOTION_HTTP_URL}) の両方で接続できませんでした"
-        )
+    # ToolboxTool フォールバックは無効化（依存関係なし）
+    logger.error("Failed to connect via SSE, no fallback available")
+    raise RuntimeError(
+        f"Notion MCP Server接続失敗: SSE ({NOTION_MCP_URL}) で接続できませんでした"
+    )
 
 
 def get_notion_mcp_tools_sync() -> Optional[MCPToolset]:

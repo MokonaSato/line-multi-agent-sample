@@ -14,9 +14,7 @@ from google.adk.tools import agent_tool, google_search
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
 from src.tools.calculator_tools import calculator_tools_list
-from src.tools.filesystem import filesystem_tools
 from src.tools.mcp_integration import get_tools_async
-from src.tools.notion import notion_tools_combined
 from src.tools.web_tools import fetch_web_content
 from src.utils.logger import setup_logger
 
@@ -52,7 +50,8 @@ class AgentFactory:
             self._mcp_tools_initialized = True
             logger.info("MCP tools initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize MCP tools: {e}")
+            logger.warning(f"Failed to initialize MCP tools: {e}")
+            logger.warning("Application will continue without MCP tools")
             self._mcp_tools_initialized = True  # エラーでも初期化済みとする
 
     async def get_notion_mcp_tools_async(self) -> Optional[MCPToolset]:
@@ -112,20 +111,33 @@ class AgentFactory:
         # MCP ツールを取得
         mcp_tools = await self.get_notion_mcp_tools_async()
 
-        # MCP ツールが利用可能な場合はそれを使用、そうでなければ従来ツール
-        if mcp_tools:
-            tools = mcp_tools
-            logger.info("Notion agent created with MCP tools")
-        else:
-            tools = notion_tools_combined
-            logger.warning("Notion agent created with fallback tools (no MCP)")
+        # MCPツールセットが利用できない場合、従来のNotion APIツールを使用
+        if not mcp_tools:
+            logger.warning(
+                "Notion MCP Toolset is not available. "
+                "Using legacy Notion API tools as fallback."
+            )
+            # 従来のAPIツールを使用
+            from src.tools.notion import TOOLS
 
+            fallback_tools = TOOLS["general"]  # 汎用的な操作セットを使用
+
+            return LlmAgent(
+                name=cfg["name"],
+                model=cfg["model"],
+                instruction=self.prompts[cfg["prompt_key"]],
+                description=cfg["description"] + " (using legacy API tools)",
+                tools=fallback_tools,
+                output_key=cfg.get("output_key"),
+            )
+
+        logger.info("Notion agent created with MCP tools")
         return LlmAgent(
             name=cfg["name"],
             model=cfg["model"],
             instruction=self.prompts[cfg["prompt_key"]],
             description=cfg["description"],
-            tools=tools,
+            tools=mcp_tools,
             output_key=cfg.get("output_key"),
         )
 
@@ -147,22 +159,21 @@ class AgentFactory:
         # MCP ツールを取得
         mcp_tools = await self.get_filesystem_mcp_tools_async()
 
-        # MCP ツールが利用可能な場合はそれを使用、そうでなければ従来ツール
-        if mcp_tools:
-            tools = mcp_tools
-            logger.info("Filesystem agent created with MCP tools")
-        else:
-            tools = filesystem_tools
+        # MCPツールセットが利用できない場合の警告と処理
+        if not mcp_tools:
             logger.warning(
-                "Filesystem agent created with fallback tools (no MCP)"
+                "Filesystem MCP Toolset is not available. "
+                "Filesystem agent will not be created."
             )
+            raise RuntimeError("Filesystem MCP Toolset unavailable")
 
+        logger.info("Filesystem agent created with MCP tools")
         return Agent(
             name=cfg["name"],
             model=cfg["model"],
             description=cfg["description"],
             instruction=self.prompts[cfg["prompt_key"]],
-            tools=tools,
+            tools=mcp_tools,
         )
 
     async def create_url_recipe_pipeline(self) -> SequentialAgent:
@@ -202,14 +213,26 @@ class AgentFactory:
 
         # MCP ツールを取得
         mcp_tools = await self.get_notion_mcp_tools_async()
-        tools = mcp_tools if mcp_tools else notion_tools_combined
+
+        # MCPツールセットが利用できない場合、従来のAPIツールを使用
+        if not mcp_tools:
+            logger.warning(
+                "Notion MCP Toolset is not available for URL recipe pipeline. "
+                "Using legacy Notion API tools as fallback."
+            )
+            # 従来のAPIツールを使用
+            from src.tools.notion import TOOLS
+
+            fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
+        else:
+            fallback_tools = mcp_tools
 
         notion_registration_agent = LlmAgent(
             name=register_cfg["name"],
             model=register_cfg["model"],
             instruction=register_instruction,
             description=register_cfg["description"],
-            tools=tools,
+            tools=fallback_tools,
             output_key=register_cfg["output_key"],
         )
 
@@ -234,25 +257,37 @@ class AgentFactory:
         pipe_cfg = img_cfg["pipeline"]
 
         # 1. Image Analysis Agent
+        # カスタム変数でプロンプトを取得
+        from src.agents.prompt_manager import PromptManager
+
+        prompt_manager = PromptManager()
+        analysis_prompt = prompt_manager.get_prompt(
+            analysis_cfg["prompt_key"], analysis_cfg.get("variables", {})
+        )
+
         image_analysis_agent = LlmAgent(
             name=analysis_cfg["name"],
             model=analysis_cfg["model"],
-            instruction=self.prompts[analysis_cfg["prompt_key"]],
+            instruction=analysis_prompt,
             description=analysis_cfg["description"],
             tools=[],  # Geminiの視覚認識機能を使用
             output_key=analysis_cfg["output_key"],
         )
 
         # 2. Image Data Enhancement Agent
-        # プロンプトを動的に生成してコンテキスト変数を正しく設定
-        enhancement_instruction = self.prompts[
-            enhance_cfg["prompt_key"]
-        ].replace("{extracted_recipe_data}", "{extracted_image_data}")
+        # カスタム変数でプロンプトを取得
+        enhancement_prompt = prompt_manager.get_prompt(
+            enhance_cfg["prompt_key"], enhance_cfg.get("variables", {})
+        )
+        # コンテキスト変数を正しく設定
+        enhancement_prompt = enhancement_prompt.replace(
+            "{extracted_recipe_data}", "{extracted_image_data}"
+        )
 
         image_data_enhancement_agent = LlmAgent(
             name=enhance_cfg["name"],
             model=enhance_cfg["model"],
-            instruction=enhancement_instruction,
+            instruction=enhancement_prompt,
             description=enhance_cfg["description"],
             tools=[],  # データ処理のみ
             output_key=enhance_cfg["output_key"],
@@ -261,14 +296,26 @@ class AgentFactory:
         # 3. Recipe Notion Agent - MCP ツール対応
         # MCP ツールを取得
         mcp_tools = await self.get_notion_mcp_tools_async()
-        tools = mcp_tools if mcp_tools else notion_tools_combined
+
+        # MCPツールセットが利用できない場合、従来のAPIツールを使用
+        if not mcp_tools:
+            logger.warning(
+                "Notion MCP Toolset is not available for image recipe "
+                "pipeline. Using legacy Notion API tools as fallback."
+            )
+            # 従来のAPIツールを使用
+            from src.tools.notion import TOOLS
+
+            fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
+        else:
+            fallback_tools = mcp_tools
 
         recipe_notion_agent = LlmAgent(
             name=register_cfg["name"],
             model=register_cfg["model"],
             instruction=self.prompts[register_cfg["prompt_key"]],
             description=register_cfg["description"],
-            tools=tools,
+            tools=fallback_tools,
             output_key=register_cfg["output_key"],
         )
 
@@ -288,8 +335,13 @@ class AgentFactory:
         url_recipe_pipeline = await self.create_url_recipe_pipeline()
         cfg = self.config["url_recipe"]["workflow_agent"]
 
-        # プロンプトを取得（PromptManagerで既に変数置換済み）
-        instruction = self.prompts[cfg["prompt_key"]]
+        # PromptManagerを使用して変数置換済みプロンプトを取得
+        from src.agents.prompt_manager import PromptManager
+
+        prompt_manager = PromptManager()
+        instruction = prompt_manager.get_prompt(
+            cfg["prompt_key"], cfg.get("variables", {})
+        )
 
         return LlmAgent(
             name=cfg["name"],
@@ -304,8 +356,13 @@ class AgentFactory:
         image_recipe_pipeline = await self.create_image_recipe_pipeline()
         cfg = self.config["image_recipe"]["workflow_agent"]
 
-        # プロンプトを取得（PromptManagerで既に変数置換済み）
-        instruction = self.prompts[cfg["prompt_key"]]
+        # PromptManagerを使用して変数置換済みプロンプトを取得
+        from src.agents.prompt_manager import PromptManager
+
+        prompt_manager = PromptManager()
+        instruction = prompt_manager.get_prompt(
+            cfg["prompt_key"], cfg.get("variables", {})
+        )
 
         return LlmAgent(
             name=cfg["name"],
@@ -319,48 +376,101 @@ class AgentFactory:
         """すべての標準エージェントを一括で作成"""
         logger.info("すべての標準エージェントを作成します")
 
-        # 各エージェントを作成
-        calc_agent = self.create_calculator_agent()
-        url_workflow_agent = await self.create_url_recipe_workflow_agent()
-        image_workflow_agent = await self.create_image_recipe_workflow_agent()
-        google_search_agent = self.create_google_search_agent()
-        notion_agent = await self.create_notion_agent()
-        vision_agent = self.create_vision_agent()
-        filesystem_agent = await self.create_filesystem_agent()
+        agents = {}
 
-        # エージェントをディクショナリにまとめて返却
-        return {
-            "calc_agent": calc_agent,
-            "url_recipe_workflow_agent": url_workflow_agent,
-            "image_recipe_workflow_agent": image_workflow_agent,
-            "google_search_agent": google_search_agent,
-            "notion_agent": notion_agent,
-            "vision_agent": vision_agent,
-            "filesystem_agent": filesystem_agent,
-        }
+        # 各エージェントを作成（失敗しても他のエージェントは作成を続行）
+        try:
+            agents["calc_agent"] = self.create_calculator_agent()
+            logger.info("✅ Calculator agent created")
+        except Exception as e:
+            logger.warning(f"Calculator agent creation failed: {e}")
+
+        try:
+            agents["google_search_agent"] = self.create_google_search_agent()
+            logger.info("✅ Google search agent created")
+        except Exception as e:
+            logger.warning(f"Google search agent creation failed: {e}")
+
+        try:
+            agents["vision_agent"] = self.create_vision_agent()
+            logger.info("✅ Vision agent created")
+        except Exception as e:
+            logger.warning(f"Vision agent creation failed: {e}")
+
+        # MCP依存のエージェントは慎重に作成
+        try:
+            agents["notion_agent"] = await self.create_notion_agent()
+            logger.info("✅ Notion agent created")
+        except Exception as e:
+            logger.warning(f"Notion agent creation failed: {e}")
+
+        try:
+            agents["filesystem_agent"] = await self.create_filesystem_agent()
+            logger.info("✅ Filesystem agent created")
+        except Exception as e:
+            logger.warning(f"Filesystem agent creation failed: {e}")
+
+        try:
+            agents["url_recipe_workflow_agent"] = (
+                await self.create_url_recipe_workflow_agent()
+            )
+            logger.info("✅ URL recipe workflow agent created")
+        except Exception as e:
+            logger.warning(f"URL recipe workflow agent creation failed: {e}")
+
+        try:
+            agents["image_recipe_workflow_agent"] = (
+                await self.create_image_recipe_workflow_agent()
+            )
+            logger.info("✅ Image recipe workflow agent created")
+        except Exception as e:
+            logger.warning(f"Image recipe workflow agent creation failed: {e}")
+
+        logger.info(f"Created {len(agents)} agents successfully")
+        return agents
 
     def create_root_agent(self, sub_agents: Dict[str, Agent]) -> LlmAgent:
         """ルートエージェントを作成"""
         cfg = self.config["root"]
 
-        # プロンプトを取得（PromptManagerで既に変数置換済み）
-        instruction = self.prompts[cfg["prompt_key"]]
+        # PromptManagerを使用して変数置換済みプロンプトを取得
+        from src.agents.prompt_manager import PromptManager
+
+        prompt_manager = PromptManager()
+        instruction = prompt_manager.get_prompt(
+            cfg["prompt_key"], cfg.get("variables", {})
+        )
+
+        # 利用可能なサブエージェントのみをリストに追加
+        available_sub_agents = []
+        for agent_name in [
+            "calc_agent",
+            "url_recipe_workflow_agent",
+            "image_recipe_workflow_agent",
+            "notion_agent",
+            "vision_agent",
+            "filesystem_agent",
+        ]:
+            if agent_name in sub_agents:
+                available_sub_agents.append(sub_agents[agent_name])
+
+        # ツールリストも利用可能なエージェントに応じて構成
+        tools = [fetch_web_content]
+        if "google_search_agent" in sub_agents:
+            tools.append(
+                agent_tool.AgentTool(agent=sub_agents["google_search_agent"])
+            )
+
+        logger.info(
+            f"Root agent created with {len(available_sub_agents)} sub-agents "
+            f"and {len(tools)} tools"
+        )
 
         return LlmAgent(
             model=cfg["model"],
             name=cfg["name"],
             instruction=instruction,
             description=cfg["description"],
-            tools=[
-                agent_tool.AgentTool(agent=sub_agents["google_search_agent"]),
-                fetch_web_content,
-            ],
-            sub_agents=[
-                sub_agents["calc_agent"],
-                sub_agents["url_recipe_workflow_agent"],
-                sub_agents["image_recipe_workflow_agent"],
-                sub_agents["notion_agent"],
-                sub_agents["vision_agent"],
-                sub_agents["filesystem_agent"],
-            ],
+            tools=tools,
+            sub_agents=available_sub_agents,
         )

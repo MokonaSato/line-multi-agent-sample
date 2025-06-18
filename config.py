@@ -17,6 +17,10 @@ NOTION_MCP_URL = os.getenv("NOTION_MCP_URL", "http://localhost:3001/sse")
 FILESYSTEM_HTTP_URL = os.getenv("FILESYSTEM_HTTP_URL", "http://localhost:8000")
 NOTION_HTTP_URL = os.getenv("NOTION_HTTP_URL", "http://localhost:3001")
 
+# MCP機能の有効/無効設定
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").lower() == "true"
+MCP_TIMEOUT_SECONDS = int(os.getenv("MCP_TIMEOUT_SECONDS", "10"))
+
 # 環境変数が設定されているか確認
 if not GOOGLE_API_KEY:
     print("Warning: GOOGLE_API_KEY environment variable is not set")

@@ -114,6 +114,13 @@ AGENT_CONFIG = {
             "prompt_key": "image_analysis",
             "description": "画像を分析してレシピ情報を抽出します。",
             "output_key": "extracted_image_data",
+            "variables": {
+                "analysis_principle": "画像から実際に確認できる情報のみ",
+                "extraction_type": "画像レシピ",
+                "source_type": "画像",
+                "confidence_levels": "高/中/低",
+                "image_types": "完成料理/調理過程/材料/レシピカード",
+            },
         },
         "enhancement_agent": {
             "name": "ImageDataEnhancementAgent",
@@ -121,6 +128,12 @@ AGENT_CONFIG = {
             "prompt_key": "image_data_enhancement",
             "description": "抽出された画像データを実用的なレシピに強化します。",
             "output_key": "enhanced_recipe_data",
+            "variables": {
+                "input_data_key": "extracted_image_data",
+                "output_format_key": "enhanced_recipe_data",
+                "fidelity_principle": "画像から確認できた情報のみをもとに整理",
+                "image_fidelity_principle": "画像から確認できた情報のみを忠実に登録",
+            },
         },
         "registration_agent": {
             "name": "RecipeNotionMCPAgent",

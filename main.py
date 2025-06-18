@@ -48,10 +48,14 @@ async def lifespan(app: FastAPI):
 
         # Notion MCP サービスの初期化とヘルスチェック
         logger.info("Checking MCP server health...")
-        mcp_health = await check_mcp_server_health()
-        for server, is_healthy in mcp_health.items():
-            status = "✅ Online" if is_healthy else "❌ Offline"
-            logger.info(f"MCP Server ({server}): {status}")
+        try:
+            mcp_health = await check_mcp_server_health()
+            for server, is_healthy in mcp_health.items():
+                status = "✅ Online" if is_healthy else "❌ Offline"
+                logger.info(f"MCP Server ({server}): {status}")
+        except Exception as e:
+            logger.warning(f"MCP health check failed: {e}")
+            logger.info("Application will continue without MCP services")
         logger.info("✅ MCP service check completed")
 
         logger.info("🎉 Application startup completed successfully")
@@ -153,7 +157,13 @@ async def health_check():
 
         # 各サービスのヘルスチェック
         filesystem_ok = await check_filesystem_health()
-        mcp_health = await check_mcp_server_health()
+
+        # MCPヘルスチェックもエラーハンドリング追加
+        try:
+            mcp_health = await check_mcp_server_health()
+        except Exception as e:
+            logger.warning(f"MCP health check failed in endpoint: {e}")
+            mcp_health = {"filesystem": False, "notion": False}
 
         all_services_ok = filesystem_ok and all(mcp_health.values())
         status = "ok" if all_services_ok else "degraded"

@@ -26,13 +26,8 @@ from src.tools.notion.filter_utils import (  # noqa: F401
     safe_query_with_fallback,
 )
 
-# Notion MCP ツール（新規追加）
-from src.tools.notion.mcp_tools import (
-    notion_create_page_mcp,
-    notion_query_database_mcp,
-    notion_retrieve_page_mcp,
-    notion_update_page_mcp,
-)
+# Notion MCP ツール（廃止済み - MCPToolsetを直接使用）
+from src.tools.notion.mcp_tools import notion_mcp_tools_list
 from src.tools.notion.recipes import create as create_recipe
 from src.tools.notion.recipes import get_all as get_all_recipes
 from src.tools.notion.recipes import search_by_name as search_recipes_by_name
@@ -56,34 +51,31 @@ notion_create_recipe_page = create_recipe
 notion_search_recipes_by_name = search_recipes_by_name
 notion_get_all_recipes = get_all_recipes
 
-# ADK用ツール関数のマッピング - Notion MCP Serverツールを優先
+# ADK用ツール関数のマッピング - フォールバック用
 notion_tools_combined = [
-    # MCP Server ツール（優先）
-    notion_create_page_mcp,
-    notion_query_database_mcp,
-    notion_retrieve_page_mcp,
-    notion_update_page_mcp,
-    # 従来のレシピ専用ツール（互換性維持）
+    # 基本的なページ操作
+    notion_get_page,
+    notion_create_page,
+    notion_update_page,
+    # データベース操作
+    notion_query_database,
+    notion_get_database,
+    # レシピ専用操作
+    notion_create_recipe_page,
     notion_search_recipes_by_name,
-    notion_get_all_recipes,
-    # 他の必要な従来ツール
+    # 検索機能
     notion_search,
-    notion_get_users,
 ]
 
 # カテゴリー別ツールマッピング（今後の拡張用）
 TOOLS = {
-    "search": [notion_search, notion_query_database_mcp],
+    "search": [notion_search, notion_query_database],
     "pages": [
-        notion_create_page_mcp,
-        notion_retrieve_page_mcp,
-        notion_update_page_mcp,
         notion_get_page,
         notion_create_page,
         notion_update_page,
     ],
     "databases": [
-        notion_query_database_mcp,
         notion_query_database,
         notion_get_database,
         notion_create_database,
@@ -92,8 +84,20 @@ TOOLS = {
     "users": [notion_get_users],
     "comments": [notion_create_comment],
     "recipes": [
-        notion_create_page_mcp,  # MCPツールでレシピ作成
+        notion_create_recipe_page,
         notion_search_recipes_by_name,
         notion_get_all_recipes,
+        notion_create_page,  # 汎用ページ作成も含める
+        notion_query_database,  # データベース検索も含める
+    ],
+    "general": [
+        # 汎用的な操作をまとめたセット
+        notion_search,
+        notion_get_page,
+        notion_create_page,
+        notion_update_page,
+        notion_query_database,
+        notion_get_database,
+        notion_create_recipe_page,
     ],
 }
