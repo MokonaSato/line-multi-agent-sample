@@ -209,13 +209,43 @@ class PromptManager:
         # 基本的な{{variable}}形式の変数を置換
         for var_name, var_value in variables.items():
             if isinstance(var_value, dict):
-                # ネストされた辞書の場合
-                for nested_key, nested_value in var_value.items():
-                    pattern = f"{{{{{var_name}.{nested_key}}}}}"
-                    prompt = prompt.replace(pattern, str(nested_value))
+                # ネストされた辞書の場合（複数レベル対応）
+                self._replace_nested_dict_variables(
+                    prompt, var_name, var_value
+                )
             else:
                 pattern = f"{{{{{var_name}}}}}"
                 prompt = prompt.replace(pattern, str(var_value))
+
+        # 未置換の変数パターンがないか確認してログ出力
+        remaining_vars = re.findall(r"\{\{([^}]+)\}\}", prompt)
+        if remaining_vars:
+            logger.warning(f"未置換の変数が残っています: {remaining_vars}")
+
+        return prompt
+
+    def _replace_nested_dict_variables(
+        self, prompt: str, prefix: str, value_dict: dict
+    ) -> str:
+        """ネストされた辞書変数を再帰的に置換
+
+        Args:
+            prompt: プロンプトテキスト
+            prefix: 変数のプレフィックス
+            value_dict: 辞書値
+
+        Returns:
+            str: 置換後のプロンプトテキスト
+        """
+        for nested_key, nested_value in value_dict.items():
+            if isinstance(nested_value, dict):
+                # さらにネストされている場合は再帰的に処理
+                prompt = self._replace_nested_dict_variables(
+                    prompt, f"{prefix}.{nested_key}", nested_value
+                )
+            else:
+                pattern = f"{{{{{prefix}.{nested_key}}}}}"
+                prompt = prompt.replace(pattern, str(nested_value))
 
         # {{override: ...}} と {{/override}} の間のブロックの内容を展開（簡易実装）
         prompt = re.sub(

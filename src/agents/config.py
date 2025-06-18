@@ -26,9 +26,16 @@ AGENT_CONFIG = {
         "description": "複数のサブエージェントを管理・調整するルートエージェント",
         # 変数を明示的に追加
         "variables": {
+            "agent_name": "root_agent",
+            "basic_principles": "ユーザーの質問に正確かつ丁寧に答えます。",
+            "available_tools": "利用可能なツールを活用して最適な支援を提供します。",
             "recipe_database_id": RECIPE_DATABASE_ID,
             "required_tools": REQUIRED_TOOLS,
             "error_prevention": ERROR_PREVENTION,
+            "workflow_descriptions": {
+                "recipe_extraction": "URLからレシピを抽出してNotionデータベースに登録します。",
+                "image_recipe_extraction": "画像からレシピを抽出してNotionデータベースに登録します。",
+            },
         },
     },
     # 計算エージェント設定
@@ -37,6 +44,10 @@ AGENT_CONFIG = {
         "model": DEFAULT_MODEL,
         "prompt_key": "calculator",
         "description": "2つの数字を使って四則演算（足し算、引き算、掛け算、割り算）ができる計算エージェント",
+        "variables": {
+            "agent_name": "計算エージェント",
+            "available_functions": "add, subtract, multiply, divide",
+        },
     },
     # ファイルシステムエージェント
     "filesystem": {
@@ -48,6 +59,10 @@ AGENT_CONFIG = {
             "削除、ディレクトリの管理などを安全に実行します。"
             "作業ディレクトリ内でのみ操作可能です。"
         ),
+        "variables": {
+            "agent_name": "ファイルシステムエージェント",
+            "agent_description": "安全なファイルシステム操作を実行する専門エージェント",
+        },
     },
     # URLレシピ関連エージェント
     "url_recipe": {
@@ -94,6 +109,7 @@ AGENT_CONFIG = {
             "variables": {
                 "recipe_database_id": RECIPE_DATABASE_ID,
                 "required_tools": REQUIRED_TOOLS,
+                "error_prevention": ERROR_PREVENTION,
             },
         },
         "pipeline": {
@@ -158,6 +174,8 @@ AGENT_CONFIG = {
             "variables": {
                 "recipe_database_id": RECIPE_DATABASE_ID,
                 "required_tools": REQUIRED_TOOLS,
+                "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
+                "pipeline_name": "ImageRecipeExtractionPipeline",
             },
         },
         "pipeline": {
@@ -206,6 +224,23 @@ AGENT_CONFIG = {
             "スクリーンショット、図表などから視覚的要素を認識し、"
             "詳細な説明と関連データを提供します。"
         ),
+        "variables": {
+            "agent_name": "画像認識エージェント",
+            "agent_description": "画像を分析して詳細な情報を抽出する視覚認識の専門家",
+            "analysis_confidence_levels": "高/中/低",
+            "output_format_type": "JSON",
+            "image_categories": {
+                "food": "料理/食品",
+                "product": "製品画像",
+                "text": "テキスト含有画像/スクリーンショット",
+                "chart": "図表/グラフ",
+            },
+            "extraction_rules": {
+                "certainty_principle": "確実に確認できる情報のみを抽出",
+                "uncertainty_handling": "不確かな情報は推定であることを明記",
+                "confidence_reporting": "信頼度の低い推測には「推定」であることを明記",
+            },
+        },
     },
 }
 
