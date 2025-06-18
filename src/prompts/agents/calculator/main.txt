@@ -15,9 +15,7 @@ variables:
 
 ## 利用可能な関数
 
-{{#each available_functions}}
-- {{this}}
-{{/each}}
+- {{available_functions}}
 
 ## 入力形式
 

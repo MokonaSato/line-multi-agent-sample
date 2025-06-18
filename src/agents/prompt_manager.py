@@ -1,7 +1,7 @@
 """シンプルなプロンプト管理モジュール
 
-複雑なテンプレート継承システムを排除し、直接的なファイル読み込みのみを行う
-シンプルなプロンプト管理システムです。基本的な変数置換機能も提供します。
+直接的なファイル読み込みと基本的な変数置換機能を提供する
+シンプルなプロンプト管理システムです。
 """
 
 import os
@@ -45,11 +45,13 @@ DEFAULT_VARIABLES = {
     "agent_name": "root_agent",
     "basic_principles": "ユーザーの質問に正確かつ丁寧に答えます。",
     "available_tools": "利用可能なツールを活用して最適な支援を提供します。",
+    "available_functions": "add, subtract, multiply, divide",
+    "this": "計算関数",
     "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
-    "required_tools": "notion_create_recipe_page",
+    "required_tools": "notion_create_page_mcp",
     "required_fields": "名前、材料、手順",
     "target_format": "Notion データベース形式",
-    "primary_tool": "notion_create_recipe_page",
+    "primary_tool": "notion_create_page_mcp",
     "forbidden_tools": "notion_create_page, create",
     "error_prevention_rule": (
         "汎用ツールを使用すると「missing required parameters」エラーが発生します"
@@ -59,7 +61,7 @@ DEFAULT_VARIABLES = {
     "validation_rules": "必須パラメータの存在チェック、データ型の検証、文字列の長さチェック",
     "notion_token_env": "NOTION_TOKEN",
     "required_params": "名前、材料、手順",
-    "recipe_tool": "notion_create_recipe_page",
+    "recipe_tool": "notion_create_page_mcp",
     "generic_tools": "notion_create_page, create",
     "error_prevention": (
         "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
@@ -106,11 +108,12 @@ DEFAULT_VARIABLES = {
         "見えない材料の推測による追加",
         "一般的な知識による手順の補完",
         "数値項目の推測値設定",
-        "創作的な料理名の付与"
+        "創作的な料理名の付与",
     ],
     # テンプレートシステム変数
     "workflow_name": "レシピ処理ワークフロー",
     "workflow_description": "レシピ情報を処理するワークフローを管理するエージェント",
+    "workflow_type_description": "URLから抽出されたレシピデータ",
     "pipeline_steps": "1. データ抽出 → 2. データ変換 → 3. Notion登録",
     "error_prevention_strategy": "各ステップでデータ検証を実行し、エラーを未然に防ぐ",
     "success_criteria": "Notionデータベースにレシピが正常に登録されること",

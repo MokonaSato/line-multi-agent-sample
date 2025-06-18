@@ -7,7 +7,7 @@ message_type: error_definitions
 variables:
   notion_token_env: "NOTION_TOKEN"
   required_params: "parent_id, title, properties"
-  recipe_tool: "notion_create_recipe_page"
+  recipe_tool: "notion_create_page_mcp"
   generic_tools: "notion_create_page, create"
 ---
 

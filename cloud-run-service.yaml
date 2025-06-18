@@ -29,9 +29,9 @@ spec:
         - name: PYTHONPATH
           value: "/app"
         - name: NOTION_MCP_URL
-          value: "http://localhost:3001"
+          value: "http://localhost:3001/sse"
         - name: FILESYSTEM_MCP_URL
-          value: "http://localhost:3000"
+          value: "http://localhost:8000/sse"
         resources:
           limits:
             cpu: "1"
@@ -61,7 +61,7 @@ spec:
         env:
         - name: PORT
           value: "3001"
-        - name: NOTION_API_KEY
+        - name: NOTION_TOKEN
           valueFrom:
             secretKeyRef:
               name: notion-api-key
@@ -73,12 +73,14 @@ spec:
           set -e
           echo "Installing Notion MCP Server and supergateway..."
           npm install -g @notionhq/notion-mcp-server supergateway
-          echo "Verifying NOTION_API_KEY is set..."
-          if [ -z "$NOTION_API_KEY" ]; then
-            echo "ERROR: NOTION_API_KEY is not set"
+          echo "Verifying NOTION_TOKEN is set..."
+          if [ -z "$NOTION_TOKEN" ]; then
+            echo "ERROR: NOTION_TOKEN is not set"
             exit 1
           fi
-          echo "NOTION_API_KEY is set (length: ${#NOTION_API_KEY})"
+          echo "NOTION_TOKEN is set (length: ${#NOTION_TOKEN})"
+          echo "Setting NOTION_API_KEY from NOTION_TOKEN for MCP server compatibility..."
+          export NOTION_API_KEY="$NOTION_TOKEN"
           echo "Testing Notion MCP Server directly..."
           timeout 10s npx @notionhq/notion-mcp-server || echo "Direct test completed"
           echo "Starting Notion MCP Server with supergateway on port 3001..."

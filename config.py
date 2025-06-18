@@ -9,6 +9,14 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 
+# MCP Server関連の環境変数
+FILESYSTEM_MCP_URL = os.getenv(
+    "FILESYSTEM_MCP_URL", "http://localhost:8000/sse"
+)
+NOTION_MCP_URL = os.getenv("NOTION_MCP_URL", "http://localhost:3001/sse")
+FILESYSTEM_HTTP_URL = os.getenv("FILESYSTEM_HTTP_URL", "http://localhost:8000")
+NOTION_HTTP_URL = os.getenv("NOTION_HTTP_URL", "http://localhost:3001")
+
 # 環境変数が設定されているか確認
 if not GOOGLE_API_KEY:
     print("Warning: GOOGLE_API_KEY environment variable is not set")

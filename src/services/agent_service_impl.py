@@ -11,6 +11,7 @@
 - リソース管理（初期化とクリーンアップ）
 """
 
+import asyncio
 import base64
 from typing import List, Optional, Tuple
 
@@ -82,7 +83,12 @@ INTERMEDIATE_PATTERNS = [
 # エージェント設定
 MIN_FINAL_RESPONSE_LENGTH = 50
 MIN_STEPS_FOR_SEQUENTIAL = 2
-MAX_SESSION_HISTORY_SIZE = 10  # セッション履歴の最大保持数
+MAX_SESSION_HISTORY_SIZE = 3  # セッション履歴の最大保持数
+
+# Gemini API エラー対処設定
+MAX_RETRY_ATTEMPTS = 3  # リトライ最大回数
+RETRY_DELAY_SECONDS = 2  # リトライ間隔（秒）
+TOKEN_LIMIT_REDUCTION_RATIO = 0.8  # トークン制限エラー時の削減比率
 
 
 class AgentService:
@@ -266,6 +272,88 @@ class AgentService:
             func_name = event.function_call.name
             logger.info(f"Function called: {func_name}")
 
+    @staticmethod
+    def is_gemini_500_error(error: Exception) -> bool:
+        """Gemini 500エラーかどうかを判定
+
+        Args:
+            error: 例外オブジェクト
+
+        Returns:
+            Gemini 500エラーであればTrue
+        """
+        error_str = str(error).lower()
+        return (
+            "500" in error_str
+            and ("internal" in error_str or "gemini" in error_str)
+        ) or (hasattr(error, "code") and error.code == 500)
+
+    @staticmethod
+    def is_token_limit_error(error: Exception) -> bool:
+        """トークン制限エラーかどうかを判定
+
+        Args:
+            error: 例外オブジェクト
+
+        Returns:
+            トークン制限エラーであればTrue
+        """
+        error_str = str(error).lower()
+        return (
+            "token" in error_str
+            and (
+                "limit" in error_str
+                or "length" in error_str
+                or "too long" in error_str
+            )
+        ) or ("input_token" in error_str)
+
+    def _truncate_message_for_retry(
+        self,
+        message: str,
+        reduction_ratio: float = TOKEN_LIMIT_REDUCTION_RATIO,
+    ) -> str:
+        """メッセージを短縮してリトライ用に調整
+
+        Args:
+            message: 元のメッセージ
+            reduction_ratio: 削減比率（0.0-1.0）
+
+        Returns:
+            短縮されたメッセージ
+        """
+        if len(message) <= 100:
+            return message
+
+        target_length = int(len(message) * reduction_ratio)
+        truncated = message[:target_length]
+
+        # 文の途中で切れないように調整
+        last_period = truncated.rfind("。")
+        last_exclamation = truncated.rfind("！")
+        last_question = truncated.rfind("？")
+
+        cut_point = max(last_period, last_exclamation, last_question)
+        if cut_point > target_length * 0.7:  # 70%以上の位置で見つかった場合
+            truncated = truncated[: cut_point + 1]
+
+        logger.info(
+            f"Message truncated from {len(message)} to "
+            f"{len(truncated)} characters"
+        )
+        return truncated + "（メッセージが長すぎるため一部省略しました）"
+
+    def _reduce_session_history_for_retry(self, session: Session) -> None:
+        """セッション履歴を大幅に削減してリトライ用に調整
+
+        Args:
+            session: セッションオブジェクト
+        """
+        if session.history and len(session.history) > 3:
+            # 最新の3つのみ保持
+            session.history = session.history[-3:]
+            logger.info("Session history reduced to 3 items for retry")
+
     async def execute_and_get_response(
         self,
         message: str,
@@ -274,7 +362,89 @@ class AgentService:
         content: types.Content,
         image_data: Optional[bytes] = None,
     ) -> str:
-        """エージェントを実行し応答を取得
+        """エージェントを実行し応答を取得（リトライ機能付き）
+
+        Args:
+            message: オリジナルのメッセージ（ログ用）
+            user_id: ユーザーID
+            session_id: セッションID
+            content: Content型のメッセージ
+            image_data: 画像データ（ログ用）
+
+        Returns:
+            エージェントからの最終応答
+        """
+        last_error = None
+        current_message = message
+        current_content = content
+
+        for attempt in range(MAX_RETRY_ATTEMPTS):
+            try:
+                return await self._execute_single_attempt(
+                    current_message,
+                    user_id,
+                    session_id,
+                    current_content,
+                    image_data,
+                )
+
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"Attempt {attempt + 1}/{MAX_RETRY_ATTEMPTS} failed: {e}"
+                )
+
+                # Gemini 500エラーまたはトークン制限エラーの場合のみリトライ
+                if not (
+                    self.is_gemini_500_error(e) or self.is_token_limit_error(e)
+                ):
+                    logger.error(f"Non-retryable error: {e}")
+                    break
+
+                # 最後の試行でない場合はリトライ準備
+                if attempt < MAX_RETRY_ATTEMPTS - 1:
+                    # トークン制限エラーの場合はメッセージを短縮
+                    if self.is_token_limit_error(e):
+                        logger.info(
+                            "Token limit error detected, "
+                            "truncating message for retry"
+                        )
+                        current_message = self._truncate_message_for_retry(
+                            current_message
+                        )
+                        current_content = self.create_message_content(
+                            current_message,
+                            image_data,
+                            image_data and "image/jpeg" or None,
+                        )
+
+                        # セッション履歴も削減
+                        session = self._get_session(user_id, session_id)
+                        if session:
+                            self._reduce_session_history_for_retry(session)
+
+                    # リトライ前に待機
+                    await asyncio.sleep(RETRY_DELAY_SECONDS)
+                    logger.info(
+                        f"Retrying attempt {attempt + 2}/{MAX_RETRY_ATTEMPTS}"
+                    )
+
+        # すべてのリトライが失敗した場合
+        logger.error(
+            f"All {MAX_RETRY_ATTEMPTS} attempts failed. "
+            f"Last error: {last_error}"
+        )
+        return f"エラーが発生しました: {str(last_error)}"
+
+    async def _execute_single_attempt(
+        self,
+        message: str,
+        user_id: str,
+        session_id: str,
+        content: types.Content,
+        image_data: Optional[bytes] = None,
+    ) -> str:
+        """単一の実行試行（内部メソッド）
 
         Args:
             message: オリジナルのメッセージ（ログ用）
@@ -290,45 +460,38 @@ class AgentService:
         all_responses = []
         sequential_step_count = 0
 
-        try:
-            # ログ出力
-            image_info = (
-                f" (with {len(image_data)} bytes image)" if image_data else ""
+        # ログ出力
+        image_info = (
+            f" (with {len(image_data)} bytes image)" if image_data else ""
+        )
+        logger.info(
+            f"Processing message from user {user_id}: "
+            f"{message[:100]}...{image_info}"
+        )
+
+        # エージェント実行
+        events_async = self.runner.run_async(
+            session_id=session_id, user_id=user_id, new_message=content
+        )
+
+        # 応答イベントを処理
+        async for event in events_async:
+            # 関数呼び出しのログ
+            if event.author != "user" and event.content:
+                self.log_function_calls(event)
+
+            # 最終応答を処理
+            result = await self._process_final_response(
+                event, all_responses, sequential_step_count
             )
-            logger.info(
-                f"Processing message from user {user_id}: "
-                f"{message[:100]}...{image_info}"
-            )
 
-            # エージェント実行
-            events_async = self.runner.run_async(
-                session_id=session_id, user_id=user_id, new_message=content
-            )
+            if result:
+                (final_response, all_responses, sequential_step_count) = result
 
-            # 応答イベントを処理
-            async for event in events_async:
-                # 関数呼び出しのログ
-                if event.author != "user" and event.content:
-                    self.log_function_calls(event)
-
-                # 最終応答を処理
-                result = await self._process_final_response(
-                    event, all_responses, sequential_step_count
-                )
-
-                if result:
-                    (final_response, all_responses, sequential_step_count) = (
-                        result
-                    )
-
-                    # 真の最終応答が見つかった場合はループを抜ける
-                    if final_response:
-                        logger.info("Received true final response from agent")
-                        break
-
-        except Exception as e:
-            logger.error(f"Error during agent execution: {e}")
-            final_response = f"エラーが発生しました: {str(e)}"
+                # 真の最終応答が見つかった場合はループを抜ける
+                if final_response:
+                    logger.info("Received true final response from agent")
+                    break
 
         # 最終応答がない場合のフォールバック処理
         if not final_response:

@@ -18,7 +18,7 @@ variables:
 
 ## 入力データ
 前のエージェント（ContentExtractionAgent）から以下の形式のJSONデータを受け取ります：
-{{{input_context}}}
+{{input_context}}
 
 ## 変換タスク
 入力されたレシピデータから、notion_create_page関数の呼び出しに必要なパラメータを準備してください。
@@ -42,7 +42,7 @@ variables:
 ```
 
 ## 重要な注意事項
-- parent_idは必ず「{{database_id}}」を使用
+- parent_idは必ず「{{recipe_database_id}}」を使用
 - parent_typeは「database」を使用  
 - rich_textフィールドの内容が2000文字を超える場合は切り詰める
 - 数値フィールドは必ず数値型で設定（文字列の場合は0に変換）

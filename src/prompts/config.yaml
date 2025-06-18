@@ -6,7 +6,7 @@ default_lang: "ja"
 global_variables:
   # レシピ関連
   recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
-  required_tools: "notion_create_recipe_page"
+  required_tools: "notion_create_page_mcp"
   error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
   required_fields: "名前、材料、手順"
   
@@ -64,9 +64,9 @@ agents:
     model: "gemini-2.5-flash-preview-05-20"
     variables:
       recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
-      primary_tool: "notion_create_recipe_page"
+      primary_tool: "notion_create_page_mcp"
       forbidden_tools: "notion_create_page, create"
-      error_prevention_rule: "レシピ登録時は必ずnotion_create_recipe_pageツールを使用し、missing required parametersエラーを防ぐ"
+      error_prevention_rule: "レシピ登録時は必ずnotion_create_page_mcpツール（MCP Server経由）を使用し、missing required parametersエラーを防ぐ"
       required_fields: "名前、材料、手順"
     prompts:
       - main: "agents/notion/main.txt"
@@ -116,7 +116,7 @@ workflows:
       version: "1.0.0"
       variables:
         recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"  # 明示的に設定
-        required_tools: "notion_create_recipe_page"
+        required_tools: "notion_create_page_mcp"
         error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
         required_fields: "名前、材料、手順"
         
@@ -145,7 +145,7 @@ workflows:
       version: "1.0.0"
       variables:
         recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"  # 明示的に設定
-        required_tools: "notion_create_recipe_page"
+        required_tools: "notion_create_page_mcp"
         error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
         image_analysis_principle: "画像から確認できる情報のみを抽出"
         required_fields: "名前、材料、手順"

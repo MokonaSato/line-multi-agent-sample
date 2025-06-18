@@ -1,0 +1,104 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/execution-environment: gen2
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/urls: '["https://line-multi-agent-292672379303.asia-northeast1.run.app","https://line-multi-agent-fevis6wfsq-an.a.run.app"]'
+  labels:
+    cloud.googleapis.com/location: asia-northeast1
+  name: line-multi-agent
+  namespace: '292672379303'
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '10'
+        run.googleapis.com/cpu-throttling: 'false'
+        run.googleapis.com/execution-environment: gen2
+      labels:
+        run.googleapis.com/startupProbeType: Default
+    spec:
+      containerConcurrency: 10
+      containers:
+      - env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: gen-lang-client-0075173573
+        - name: PYTHONPATH
+          value: /app
+        - name: NOTION_MCP_URL
+          value: http://localhost:3001
+        - name: FILESYSTEM_MCP_URL
+          value: http://localhost:3000
+        image: gcr.io/gen-lang-client-0075173573/line-multi-agent:c57e1516-8e32-40a6-b794-4b5d821807bf
+        name: line-multi-agent
+        ports:
+        - containerPort: 8080
+          name: http1
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1.5Gi
+        startupProbe:
+          failureThreshold: 1
+          periodSeconds: 240
+          tcpSocket:
+            port: 8080
+          timeoutSeconds: 240
+      - args:
+        - -c
+        - |
+          set -e
+          echo "Installing Filesystem MCP Server and supergateway..."
+          npm install -g @modelcontextprotocol/server-filesystem supergateway
+          echo "Starting Filesystem MCP Server with supergateway on port 3000..."
+          exec npx supergateway --stdio "npx @modelcontextprotocol/server-filesystem /tmp" --port 3000 --healthEndpoint /health
+        command:
+        - /bin/sh
+        env:
+        - name: PORT
+          value: '3000'
+        image: node:20-alpine
+        name: filesystem-mcp-server
+        resources:
+          limits:
+            cpu: '0.25'
+            memory: 256Mi
+      - args:
+        - -c
+        - |
+          set -e
+          echo "Installing Notion MCP Server and supergateway..."
+          npm install -g @notionhq/notion-mcp-server supergateway
+          echo "Verifying NOTION_API_KEY is set..."
+          if [ -z "$NOTION_API_KEY" ]; then
+            echo "ERROR: NOTION_API_KEY is not set"
+            exit 1
+          fi
+          echo "NOTION_API_KEY is set (length: ${#NOTION_API_KEY})"
+          echo "Testing Notion MCP Server directly..."
+          timeout 10s npx @notionhq/notion-mcp-server || echo "Direct test completed"
+          echo "Starting Notion MCP Server with supergateway on port 3001..."
+          exec npx supergateway --stdio "npx @notionhq/notion-mcp-server" --port 3001 --healthEndpoint /health
+        command:
+        - /bin/sh
+        env:
+        - name: PORT
+          value: '3001'
+        - name: NOTION_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: notion-api-key
+        image: node:20-alpine
+        name: notion-mcp-server
+        resources:
+          limits:
+            cpu: '0.25'
+            memory: 256Mi
+      serviceAccountName: 292672379303-compute@developer.gserviceaccount.com
+      timeoutSeconds: 300
+  traffic:
+  - latestRevision: true
+    percent: 100

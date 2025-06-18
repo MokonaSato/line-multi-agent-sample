@@ -1,359 +1,120 @@
-"""Notion MCP Server連携モジュール
+"""Notion MCP Server連携モジュール（Google ADK対応）
 
-このモジュールはNotionMCPサーバーとの通信を担当し、
-HTTP API経由でMCPサーバーにリクエストを送信します。
+このモジュールはGoogle ADKのMCPToolsetを使用して
+Notion MCP Serverとの連携を行います。
 """
 
 import os
-import time
-from typing import Any, Dict, List, Optional
+from contextlib import AsyncExitStack
+from typing import Optional, Tuple
 
-import httpx
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseServerParams
+from google.adk.tools.toolbox_tool import ToolboxTool
 
 from src.utils.logger import setup_logger
 
 logger = setup_logger("notion_mcp")
 
 # Notion MCP ServerのURL（環境変数から取得）
-NOTION_MCP_URL = os.getenv("NOTION_MCP_URL", "http://localhost:3001")
+NOTION_MCP_URL = os.getenv("NOTION_MCP_URL", "http://localhost:3001/sse")
+NOTION_HTTP_URL = os.getenv("NOTION_HTTP_URL", "http://localhost:3001")
 
 
-def initialize_notion_mcp() -> None:
-    """Notion MCP Serverを初期化する（同期版）"""
+async def get_notion_mcp_tools_async() -> Tuple[MCPToolset, AsyncExitStack]:
+    """Cloud Run上のMCPサイドカーからNotionツールを取得する
+
+    Returns:
+        Tuple[MCPToolset, AsyncExitStack]: Notionツールセットとリソース管理用のexitスタック
+    """
+    logger.info("Attempting to connect to Notion MCP server (Sidecar)...")
+
+    # サイドカーの検出を試行
+    try:
+        # Notion MCP (localhost:3001/sse) へSSEで接続
+        toolset, exit_stack = await MCPToolset.from_server(
+            connection_params=SseServerParams(url=NOTION_MCP_URL)
+        )
+        logger.info("Notion MCP Toolset created successfully via SSE.")
+        return toolset, exit_stack
+    except Exception as e:
+        logger.warning(f"SSE connection failed: {e}")
+
+    # フォールバック: ToolboxToolを試行
+    try:
+        logger.info("Attempting to connect via ToolboxTool...")
+        toolbox = ToolboxTool(NOTION_HTTP_URL)
+        toolset = toolbox.get_toolset(toolset_name="notion_toolset")
+        logger.info("Notion MCP Toolset created successfully via ToolboxTool.")
+        return toolset, AsyncExitStack()
+    except Exception as e:
+        logger.error(f"Failed to connect via ToolboxTool: {e}")
+        raise RuntimeError(
+            f"Notion MCP Server接続失敗: SSE ({NOTION_MCP_URL}) と "
+            f"HTTP ({NOTION_HTTP_URL}) の両方で接続できませんでした"
+        )
+
+
+def get_notion_mcp_tools_sync() -> Optional[MCPToolset]:
+    """同期版のNotion MCPツール取得（下位互換性用）
+
+    Returns:
+        MCPToolset or None: 成功時はツールセット、失敗時はNone
+    """
+    try:
+        import asyncio
+
+        return asyncio.run(get_notion_mcp_tools_async()[0])
+    except Exception as e:
+        logger.error(f"同期版MCP接続に失敗: {e}")
+        return None
+
+
+async def initialize_notion_mcp() -> (
+    Tuple[Optional[MCPToolset], AsyncExitStack]
+):
+    """Notion MCP Serverを初期化する（非同期版）
+
+    Returns:
+        Tuple[Optional[MCPToolset], AsyncExitStack]: ツールセットとexitスタック
+    """
     try:
         logger.info(
             f"Initializing Notion MCP client with URL: {NOTION_MCP_URL}"
         )
 
-        # MCPサーバーが起動するまで最大60秒待機
-        max_wait_time = 60
-        start_time = time.time()
-
-        while time.time() - start_time < max_wait_time:
-            if check_notion_mcp_health_sync():
-                logger.info("✅ Notion MCP client initialized successfully")
-                return
-
-            logger.info("Waiting for Notion MCP Server to start...")
-            time.sleep(5)
-
-        logger.warning(
-            f"⚠️ Notion MCP Server not available after {max_wait_time}s, "
-            "using fallback mode"
-        )
+        toolset, exit_stack = await get_notion_mcp_tools_async()
+        logger.info("✅ Notion MCP client initialized successfully")
+        return toolset, exit_stack
 
     except Exception as e:
         logger.error(f"Failed to initialize Notion MCP client: {e}")
         logger.warning("Running without Notion MCP Server")
+        return None, AsyncExitStack()
 
 
-def cleanup_notion_mcp() -> None:
-    """Notion MCP Serverのクリーンアップ（同期版）"""
+async def cleanup_notion_mcp(exit_stack: AsyncExitStack) -> None:
+    """Notion MCP Serverのクリーンアップ（非同期版）
+
+    Args:
+        exit_stack: リソース管理用のexitスタック
+    """
     try:
+        await exit_stack.aclose()
         logger.info("✅ Notion MCP cleanup completed")
     except Exception as e:
         logger.error(f"Error during Notion MCP cleanup: {e}")
 
 
-def check_notion_mcp_health_sync() -> bool:
-    """Notion MCP Serverのヘルスチェック（同期版）"""
-    try:
-        with httpx.Client(timeout=5.0) as client:
-            # まずヘルスチェックエンドポイントを試す
-            try:
-                response = client.get(f"{NOTION_MCP_URL}/health")
-                return response.status_code == 200
-            except Exception:
-                # ヘルスエンドポイントがない場合は基本的なステータスを確認
-                try:
-                    response = client.get(f"{NOTION_MCP_URL}/")
-                    return response.status_code in [
-                        200,
-                        404,
-                    ]  # サーバーが応答すれば OK
-                except Exception:
-                    return False
-    except Exception as e:
-        logger.warning(f"Notion MCP health check failed: {e}")
-        return False
-
-
 async def check_notion_mcp_health() -> bool:
-    """Notion MCP Serverのヘルスチェック（非同期版）"""
+    """Notion MCP Serverのヘルスチェック（非同期版）
+
+    Returns:
+        bool: サーバーが利用可能かどうか
+    """
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # まずヘルスチェックエンドポイントを試す
-            try:
-                response = await client.get(f"{NOTION_MCP_URL}/health")
-                return response.status_code == 200
-            except Exception:
-                # ヘルスエンドポイントがない場合は基本的なステータスを確認
-                try:
-                    response = await client.get(f"{NOTION_MCP_URL}/")
-                    return response.status_code in [
-                        200,
-                        404,
-                    ]  # サーバーが応答すれば OK
-                except Exception:
-                    return False
+        toolset, exit_stack = await get_notion_mcp_tools_async()
+        await exit_stack.aclose()
+        return True
     except Exception as e:
         logger.warning(f"Notion MCP health check failed: {e}")
         return False
-
-
-def create_notion_page(
-    parent_database_id: str,
-    properties: Dict[str, Any],
-    children: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
-    """Notion MCP Serverを通じてページを作成する（同期版）
-
-    Args:
-        parent_database_id: 親データベースID
-        properties: ページプロパティ
-        children: 子コンテンツ（オプション）
-
-    Returns:
-        作成されたページの情報
-    """
-    try:
-        # MCP Server APIエンドポイントに接続
-        payload = {
-            "method": "notion_create_page",
-            "params": {
-                "parent": {"database_id": parent_database_id},
-                "properties": properties,
-                "children": children or [],
-            },
-        }
-
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                f"{NOTION_MCP_URL}/api/call",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(
-                    f"✅ Successfully created Notion page: {result.get('id')}"
-                )
-                return {
-                    "success": True,
-                    "id": result.get("id"),
-                    "url": result.get("url"),
-                    "properties": result.get("properties", {}),
-                }
-            else:
-                error_text = response.text
-                logger.error(
-                    f"Failed to create Notion page: {response.status_code} - "
-                    f"{error_text}"
-                )
-                return {
-                    "success": False,
-                    "error": f"API call failed: {response.status_code}",
-                    "id": None,
-                    "url": None,
-                }
-
-    except Exception as e:
-        logger.error(f"Error creating Notion page via MCP: {e}")
-        return {
-            "success": False,
-            "error": f"MCP Server通信エラー: {str(e)}",
-            "id": None,
-            "url": None,
-        }
-
-
-def query_notion_database(
-    database_id: str,
-    filter_conditions: Optional[Dict[str, Any]] = None,
-    sorts: Optional[List[Dict[str, Any]]] = None,
-    page_size: int = 100,
-) -> Dict[str, Any]:
-    """Notion MCP Serverを通じてデータベースをクエリする（同期版）
-
-    Args:
-        database_id: データベースID
-        filter_conditions: フィルター条件
-        sorts: ソート条件
-        page_size: ページサイズ
-
-    Returns:
-        クエリ結果
-    """
-    try:
-        payload = {
-            "method": "notion_query_database",
-            "params": {
-                "database_id": database_id,
-                "filter": filter_conditions,
-                "sorts": sorts,
-                "page_size": page_size,
-            },
-        }
-
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                f"{NOTION_MCP_URL}/api/call",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(
-                    "✅ Successfully queried Notion database: %d items",
-                    len(result.get("results", [])),
-                )
-                return {
-                    "success": True,
-                    "results": result.get("results", []),
-                    "has_more": result.get("has_more", False),
-                    "next_cursor": result.get("next_cursor"),
-                }
-            else:
-                error_text = response.text
-                logger.error(
-                    f"Failed to query Notion database: {response.status_code}"
-                    f" - {error_text}"
-                )
-                return {
-                    "success": False,
-                    "error": f"API call failed: {response.status_code}",
-                    "results": [],
-                    "has_more": False,
-                    "next_cursor": None,
-                }
-
-    except Exception as e:
-        logger.error(f"Error querying Notion database via MCP: {e}")
-        return {
-            "success": False,
-            "error": f"MCP Server通信エラー: {str(e)}",
-            "results": [],
-            "has_more": False,
-            "next_cursor": None,
-        }
-
-
-def update_notion_page(
-    page_id: str,
-    properties: Optional[Dict[str, Any]] = None,
-    archived: Optional[bool] = None,
-) -> Dict[str, Any]:
-    """Notion MCP Serverを通じてページを更新する（同期版）
-
-    Args:
-        page_id: ページID
-        properties: 更新するプロパティ
-        archived: アーカイブ状態
-
-    Returns:
-        更新されたページの情報
-    """
-    try:
-        payload = {
-            "method": "notion_update_page",
-            "params": {
-                "page_id": page_id,
-                "properties": properties,
-                "archived": archived,
-            },
-        }
-
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                f"{NOTION_MCP_URL}/api/call",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"✅ Successfully updated Notion page: {page_id}")
-                return {
-                    "success": True,
-                    "id": result.get("id"),
-                    "url": result.get("url"),
-                    "properties": result.get("properties", {}),
-                }
-            else:
-                error_text = response.text
-                logger.error(
-                    f"Failed to update Notion page: {response.status_code} - "
-                    f"{error_text}"
-                )
-                return {
-                    "success": False,
-                    "error": f"API call failed: {response.status_code}",
-                    "id": None,
-                    "url": None,
-                }
-
-    except Exception as e:
-        logger.error(f"Error updating Notion page via MCP: {e}")
-        return {
-            "success": False,
-            "error": f"MCP Server通信エラー: {str(e)}",
-            "id": None,
-            "url": None,
-        }
-
-
-def retrieve_notion_page(page_id: str) -> Dict[str, Any]:
-    """Notion MCP Serverを通じてページを取得する（同期版）
-
-    Args:
-        page_id: ページID
-
-    Returns:
-        ページの情報
-    """
-    try:
-        payload = {
-            "method": "notion_retrieve_page",
-            "params": {"page_id": page_id},
-        }
-
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                f"{NOTION_MCP_URL}/api/call",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(
-                    f"✅ Successfully retrieved Notion page: {page_id}"
-                )
-                return {
-                    "success": True,
-                    "page": result,
-                    "id": result.get("id"),
-                    "url": result.get("url"),
-                    "properties": result.get("properties", {}),
-                }
-            else:
-                error_text = response.text
-                logger.error(
-                    f"Failed to retrieve Notion page: "
-                    f"{response.status_code} - {error_text}"
-                )
-                return {
-                    "success": False,
-                    "error": f"API call failed: {response.status_code}",
-                    "page": None,
-                }
-
-    except Exception as e:
-        logger.error(f"Error retrieving Notion page via MCP: {e}")
-        return {
-            "success": False,
-            "error": f"MCP Server通信エラー: {str(e)}",
-            "page": None,
-        }

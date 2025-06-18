@@ -50,8 +50,11 @@ async def create_agent() -> Tuple[LlmAgent, AsyncExitStack]:
 
         # ファクトリークラスを初期化してエージェントを作成
         factory = AgentFactory(prompts, AGENT_CONFIG)
-        agents = factory.create_all_standard_agents()
+        agents = await factory.create_all_standard_agents()
         _root_agent = factory.create_root_agent(agents)
+
+        # MCPリソースの管理をグローバルで保持
+        _exit_stack = factory.exit_stack
 
         logger.info("ルートエージェントの作成に成功しました")
 

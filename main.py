@@ -16,7 +16,7 @@ from linebot.v3.webhooks import MessageEvent
 from src.services.agent_service_impl import cleanup_resources, init_agent
 from src.services.line_service import LineClient, LineEventHandler
 from src.tools.filesystem import initialize_filesystem_service
-from src.tools.notion_mcp import cleanup_notion_mcp, initialize_notion_mcp
+from src.tools.mcp_integration import check_mcp_server_health
 from src.utils.logger import setup_logger
 
 # ロガーのセットアップ
@@ -46,11 +46,13 @@ async def lifespan(app: FastAPI):
         await initialize_filesystem_service()
         logger.info("✅ Filesystem service initialization completed")
 
-        # Notion MCP サービスの初期化
-        logger.info("Initializing Notion MCP service...")
-        initialize_notion_mcp()  # 同期関数として呼び出し
-        cleanup_tasks.append(cleanup_notion_mcp)
-        logger.info("✅ Notion MCP service initialization completed")
+        # Notion MCP サービスの初期化とヘルスチェック
+        logger.info("Checking MCP server health...")
+        mcp_health = await check_mcp_server_health()
+        for server, is_healthy in mcp_health.items():
+            status = "✅ Online" if is_healthy else "❌ Offline"
+            logger.info(f"MCP Server ({server}): {status}")
+        logger.info("✅ MCP service check completed")
 
         logger.info("🎉 Application startup completed successfully")
 
@@ -58,10 +60,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Failed to initialize application: {e}")
         for cleanup_func in reversed(cleanup_tasks):
             try:
-                if cleanup_func == cleanup_notion_mcp:
-                    cleanup_func()  # 同期関数として呼び出し
-                else:
-                    await cleanup_func()
+                await cleanup_func()
             except Exception as cleanup_error:
                 logger.error(f"Error during startup cleanup: {cleanup_error}")
         raise
@@ -74,10 +73,7 @@ async def lifespan(app: FastAPI):
         for cleanup_func in reversed(cleanup_tasks):
             try:
                 logger.info(f"Running cleanup: {cleanup_func.__name__}")
-                if cleanup_func == cleanup_notion_mcp:
-                    cleanup_func()  # 同期関数として呼び出し
-                else:
-                    await cleanup_func()
+                await cleanup_func()
             except Exception as e:
                 logger.error(f"Error during {cleanup_func.__name__}: {e}")
         logger.info("🏁 Application shutdown completed")
@@ -153,20 +149,25 @@ async def health_check():
     """
     try:
         from src.tools.filesystem import check_filesystem_health
-        from src.tools.notion_mcp import check_notion_mcp_health
+        from src.tools.mcp_integration import check_mcp_server_health
 
         # 各サービスのヘルスチェック
         filesystem_ok = await check_filesystem_health()
-        notion_mcp_ok = await check_notion_mcp_health()
+        mcp_health = await check_mcp_server_health()
 
-        status = "ok" if (filesystem_ok and notion_mcp_ok) else "degraded"
+        all_services_ok = filesystem_ok and all(mcp_health.values())
+        status = "ok" if all_services_ok else "degraded"
+
+        services_status = {
+            "filesystem": "ok" if filesystem_ok else "error",
+        }
+        # MCP サーバーのステータスを追加
+        for server, is_healthy in mcp_health.items():
+            services_status[f"mcp_{server}"] = "ok" if is_healthy else "error"
 
         return {
             "status": status,
-            "services": {
-                "filesystem": "ok" if filesystem_ok else "error",
-                "notion_mcp": "ok" if notion_mcp_ok else "error",
-            },
+            "services": services_status,
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
