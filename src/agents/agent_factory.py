@@ -15,6 +15,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
 from src.tools.calculator_tools import calculator_tools_list
 from src.tools.mcp_integration import get_tools_async
+from src.tools.notion_mcp_wrapper import notion_mcp_wrapper_tools
 from src.tools.web_tools import fetch_web_content
 from src.utils.logger import setup_logger
 
@@ -115,29 +116,42 @@ class AgentFactory:
         if not mcp_tools:
             logger.warning(
                 "Notion MCP Toolset is not available. "
-                "Using legacy Notion API tools as fallback."
+                "Using legacy Notion API tools with wrapper as fallback."
             )
             # 従来のAPIツールを使用
             from src.tools.notion import TOOLS
 
             fallback_tools = TOOLS["general"]  # 汎用的な操作セットを使用
+            
+            # フォールバック時でもラッパーツールを追加
+            all_tools = fallback_tools + notion_mcp_wrapper_tools
 
             return LlmAgent(
                 name=cfg["name"],
                 model=cfg["model"],
                 instruction=self.prompts[cfg["prompt_key"]],
-                description=cfg["description"] + " (using legacy API tools)",
-                tools=fallback_tools,
+                description=(
+                    cfg["description"] +
+                    " (using legacy API tools with MCP wrapper)"
+                ),
+                tools=all_tools,
                 output_key=cfg.get("output_key"),
             )
 
-        logger.info("Notion agent created with MCP tools")
+        # MCPツールセットが利用可能な場合、ラッパーツールも追加
+        logger.info(
+            "Notion agent created with MCP tools and compatibility wrapper"
+        )
+
+        # MCPツールセットにラッパーツールを組み合わせる
+        all_tools = [mcp_tools] + notion_mcp_wrapper_tools
+
         return LlmAgent(
             name=cfg["name"],
             model=cfg["model"],
             instruction=self.prompts[cfg["prompt_key"]],
             description=cfg["description"],
-            tools=mcp_tools,
+            tools=all_tools,
             output_key=cfg.get("output_key"),
         )
 
@@ -225,7 +239,8 @@ class AgentFactory:
 
             fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
         else:
-            fallback_tools = mcp_tools
+            # MCPツールセットとラッパーツールを組み合わせる
+            fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
 
         notion_registration_agent = LlmAgent(
             name=register_cfg["name"],
@@ -308,7 +323,8 @@ class AgentFactory:
 
             fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
         else:
-            fallback_tools = mcp_tools
+            # MCPツールセットとラッパーツールを組み合わせる
+            fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
 
         recipe_notion_agent = LlmAgent(
             name=register_cfg["name"],

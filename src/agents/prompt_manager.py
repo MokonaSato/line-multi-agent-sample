@@ -60,7 +60,9 @@ DEFAULT_VARIABLES = {
     ),
     "agent_description": "Notionデータベースに対する操作を行う専門エージェント",
     "optional_fields": "人数、調理時間、保存期間、URL",
-    "validation_rules": "必須パラメータの存在チェック、データ型の検証、文字列の長さチェック",
+    "validation_rules": (
+        "必須パラメータの存在チェック、データ型の検証、文字列の長さチェック"
+    ),
     "notion_token_env": "NOTION_TOKEN",
     "required_params": "名前、材料、手順",
     "recipe_tool": "notion_create_page_mcp",
@@ -118,7 +120,9 @@ DEFAULT_VARIABLES = {
     "workflow_description": "レシピ情報を処理するワークフローを管理するエージェント",
     "workflow_type_description": "URLから抽出されたレシピデータ",
     "pipeline_steps": "1. データ抽出 → 2. データ変換 → 3. Notion登録",
-    "error_prevention_strategy": "各ステップでデータ検証を実行し、エラーを未然に防ぐ",
+    "error_prevention_strategy": (
+        "各ステップでデータ検証を実行し、エラーを未然に防ぐ"
+    ),
     "success_criteria": "Notionデータベースにレシピが正常に登録されること",
     "failure_handling": "エラー発生時は詳細なエラーメッセージをユーザーに提供",
     "workflow_descriptions": {
@@ -210,12 +214,18 @@ class PromptManager:
         for var_name, var_value in variables.items():
             if isinstance(var_value, dict):
                 # ネストされた辞書の場合（複数レベル対応）
-                self._replace_nested_dict_variables(
+                prompt = self._replace_nested_dict_variables(
                     prompt, var_name, var_value
                 )
+            elif isinstance(var_value, list):
+                # リストの場合（配列アクセス処理はスキップ）
+                continue
             else:
                 pattern = f"{{{{{var_name}}}}}"
                 prompt = prompt.replace(pattern, str(var_value))
+
+        # テンプレートブロックを処理
+        prompt = self._process_template_blocks(prompt)
 
         # 未置換の変数パターンがないか確認してログ出力
         remaining_vars = re.findall(r"\{\{([^}]+)\}\}", prompt)
@@ -247,7 +257,18 @@ class PromptManager:
                 pattern = f"{{{{{prefix}.{nested_key}}}}}"
                 prompt = prompt.replace(pattern, str(nested_value))
 
-        # {{override: ...}} と {{/override}} の間のブロックの内容を展開（簡易実装）
+        return prompt
+
+    def _process_template_blocks(self, prompt: str) -> str:
+        """テンプレートブロックを処理
+
+        Args:
+            prompt: プロンプトテキスト
+
+        Returns:
+            str: ブロック処理済みのプロンプトテキスト
+        """
+        # {{override: ...}} と {{/override}} の間のブロックの内容を展開
         prompt = re.sub(
             r"\{\{override:.*?\}\}(.*?)\{\{/override\}\}",
             r"\1",
@@ -255,7 +276,7 @@ class PromptManager:
             flags=re.DOTALL,
         )
 
-        # {{block: ...}} と {{/block}} の間のブロックを削除（簡易実装）
+        # {{block: ...}} と {{/block}} の間のブロックの内容を展開
         prompt = re.sub(
             r"\{\{block:.*?\}\}(.*?)\{\{/block\}\}",
             r"\1",
@@ -263,7 +284,7 @@ class PromptManager:
             flags=re.DOTALL,
         )
 
-        # YAMLメタデータセクション（先頭の---で囲まれた部分）のみを削除
+        # YAMLメタデータセクション（先頭の---で囲まれた部分）を削除
         if prompt.startswith("---\n"):
             # 最初の --- から次の --- までを削除
             parts = prompt.split("---\n", 2)
@@ -298,12 +319,21 @@ class PromptManager:
         Raises:
             ValueError: 指定されたキーが存在しない場合
         """
-        # カスタム変数がある場合はキャッシュを使用しない
-        cache_key = (
-            key
-            if not custom_variables
-            else f"{key}_{hash(frozenset(custom_variables.items()))}"
-        )
+        # カスタム変数がある場合はキャッシュを無効化
+        if custom_variables:
+            # ユニークなキャッシュキーを生成
+            import json
+
+            try:
+                custom_str = json.dumps(
+                    custom_variables, sort_keys=True, default=str
+                )
+                cache_key = f"{key}_{hash(custom_str)}"
+            except (TypeError, ValueError):
+                # JSONシリアライズできない場合は文字列化
+                cache_key = f"{key}_{hash(str(custom_variables))}"
+        else:
+            cache_key = key
 
         if cache_key in self._cache:
             return self._cache[cache_key]
@@ -320,15 +350,27 @@ class PromptManager:
             # ファイル内の変数を抽出
             file_variables = self._extract_file_variables(prompt)
 
-            # 基本的な変数置換を実行（ファイル変数を優先）
-            all_variables = {**DEFAULT_VARIABLES, **file_variables}
+            # 変数置換の優先順位: カスタム変数 > デフォルト変数 > ファイル変数
+            all_variables = {**file_variables, **DEFAULT_VARIABLES}
+            if custom_variables:
+                all_variables.update(custom_variables)
+
+            # 最初の変数置換（{{variable}}形式の単純な置換）
             prompt = self._replace_variables_with_dict(prompt, all_variables)
 
-            # カスタム変数がある場合は追加で置換
-            if custom_variables:
-                for var_name, var_value in custom_variables.items():
-                    pattern = f"{{{{{var_name}}}}}"
-                    prompt = prompt.replace(pattern, str(var_value))
+            # 二重参照の解決（{{{{variable}}}}形式）
+            for var_name, var_value in all_variables.items():
+                value_str = str(var_value)
+                if value_str.startswith("{{") and value_str.endswith("}}"):
+                    # {{variable}}形式の値を持つ変数を再度置換
+                    nested_var = value_str[2:-2]  # {{}}を除去
+                    if nested_var in all_variables:
+                        all_variables[var_name] = str(
+                            all_variables[nested_var]
+                        )
+
+            # 二度目の変数置換（二重参照を解決）
+            prompt = self._replace_variables_with_dict(prompt, all_variables)
 
             self._cache[cache_key] = prompt
             logger.info(f"プロンプト '{key}' を正常に読み込みました")
@@ -363,11 +405,10 @@ class PromptManager:
                 prompts[key] = self.get_prompt(key)
             except Exception as e:
                 logger.error(f"プロンプト '{key}' の読み込みに失敗: {e}")
-                prompts[key] = f"Error loading {key}: {str(e)}"
-
+                prompts[key] = f"Error: {str(e)}"
         return prompts
 
-    def reload_cache(self):
-        """キャッシュをクリアして再読み込み"""
+    def clear_cache(self):
+        """プロンプトキャッシュをクリア"""
         self._cache.clear()
         logger.info("プロンプトキャッシュをクリアしました")
