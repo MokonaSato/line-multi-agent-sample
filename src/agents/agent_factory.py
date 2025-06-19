@@ -122,7 +122,7 @@ class AgentFactory:
             from src.tools.notion import TOOLS
 
             fallback_tools = TOOLS["general"]  # 汎用的な操作セットを使用
-            
+
             # フォールバック時でもラッパーツールを追加
             all_tools = fallback_tools + notion_mcp_wrapper_tools
 
@@ -131,8 +131,8 @@ class AgentFactory:
                 model=cfg["model"],
                 instruction=self.prompts[cfg["prompt_key"]],
                 description=(
-                    cfg["description"] +
-                    " (using legacy API tools with MCP wrapper)"
+                    cfg["description"]
+                    + " (using legacy API tools with MCP wrapper)"
                 ),
                 tools=all_tools,
                 output_key=cfg.get("output_key"),
@@ -441,6 +441,25 @@ class AgentFactory:
             logger.info("✅ Image recipe workflow agent created")
         except Exception as e:
             logger.warning(f"Image recipe workflow agent creation failed: {e}")
+
+        # パイプラインを直接利用可能にする
+        try:
+            agents["RecipeExtractionPipeline"] = (
+                await self.create_url_recipe_pipeline()
+            )
+            logger.info("✅ RecipeExtractionPipeline created")
+        except Exception as e:
+            logger.warning(f"RecipeExtractionPipeline creation failed: {e}")
+
+        try:
+            agents["ImageRecipeExtractionPipeline"] = (
+                await self.create_image_recipe_pipeline()
+            )
+            logger.info("✅ ImageRecipeExtractionPipeline created")
+        except Exception as e:
+            logger.warning(
+                f"ImageRecipeExtractionPipeline creation failed: {e}"
+            )
 
         logger.info(f"Created {len(agents)} agents successfully")
         return agents
