@@ -132,6 +132,7 @@ AGENT_CONFIG = {
             "output_key": "extracted_image_data",
             "variables": {
                 "analysis_principle": "画像から実際に確認できる情報のみ",
+                "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
                 "extraction_type": "画像レシピ",
                 "source_type": "画像",
                 "confidence_levels": "高/中/低",
@@ -145,6 +146,8 @@ AGENT_CONFIG = {
             "description": "抽出された画像データを実用的なレシピに強化します。",
             "output_key": "enhanced_recipe_data",
             "variables": {
+                "analysis_principle": "画像から実際に確認できる情報のみ",
+                "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
                 "input_data_key": "extracted_image_data",
                 "output_format_key": "enhanced_recipe_data",
                 "fidelity_principle": "画像から確認できた情報のみをもとに整理",
@@ -175,6 +178,7 @@ AGENT_CONFIG = {
                 "recipe_database_id": RECIPE_DATABASE_ID,
                 "required_tools": REQUIRED_TOOLS,
                 "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
+                "analysis_principle": "画像から実際に確認できる情報のみ",
                 "pipeline_name": "ImageRecipeExtractionPipeline",
             },
         },
