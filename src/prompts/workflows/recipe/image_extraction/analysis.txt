@@ -9,7 +9,7 @@ variables:
   extraction_type: "画像レシピ"
   extraction_description: "画像を分析してレシピ情報を抽出する視覚認識の専門家"
   source_type: "画像"
-  analysis_principle: "画像から実際に確認できる情報のみ"
+  image_analysis_principle: "画像から実際に確認できる情報のみ"
   confidence_levels: "高/中/低"
   image_types: "完成料理/調理過程/材料/レシピカード"
   extraction_targets: |

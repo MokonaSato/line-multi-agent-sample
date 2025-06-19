@@ -35,6 +35,17 @@ docker build -t line-multi-agent .
 docker run -p 8080:8080 --env-file .env line-multi-agent
 ```
 
+## Cloud Run デプロイ
+
+```bash
+# Cloud Build でデプロイ（推奨）
+gcloud builds submit --config=cloudbuild.yaml .
+
+# デプロイ状況確認
+gcloud builds list --limit=5
+gcloud run services list --region=asia-northeast1
+```
+
 ## アーキテクチャ
 
 ### エージェント階層構造
@@ -73,7 +84,7 @@ LINE_CHANNEL_SECRET=your_line_channel_secret_here
 - `POST /callback`: LINE Webhook受信
 - `GET /health`: ヘルスチェック
 - `POST /test-agent`: エージェントテスト用
-- `GET /test-image-recipe`: 画像レシピテスト用
+- `GET/POST /test-image-recipe`: 画像レシピテスト用
 
 ## 開発時の注意点
 
@@ -96,3 +107,10 @@ LINE_CHANNEL_SECRET=your_line_channel_secret_here
 - プロンプトテストは `tests/test_prompts.py`
 - エージェント統合テストは `tests/test_agent_service_impl.py`
 - Notionツールテストは `tests/test_notion_tools.py`
+
+## デプロイメモリ
+
+- **最新デプロイ**: 2025-06-19 22:57:30 (analysis_principle変数エラー修正、test-image-recipeエンドポイント404修正)
+- **ビルドID**: 3981bccc-335a-49cd-a73a-5151639594ce (SUCCESS)
+- **リージョン**: asia-northeast1
+- **デプロイ方法**: `gcloud builds submit --config=cloudbuild.yaml .`

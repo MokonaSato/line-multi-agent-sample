@@ -19,7 +19,7 @@ spec:
       containers:
       # メインのLINE Multi-Agentアプリケーション
       - name: line-multi-agent
-        image: gcr.io/gen-lang-client-0075173573/line-multi-agent:latest
+        image: gcr.io/PROJECT_ID/line-multi-agent:BUILD_ID
         ports:
         - containerPort: 8080
           name: http1
