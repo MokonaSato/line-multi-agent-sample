@@ -350,8 +350,8 @@ class PromptManager:
             # ファイル内の変数を抽出
             file_variables = self._extract_file_variables(prompt)
 
-            # 変数置換の優先順位: カスタム変数 > デフォルト変数 > ファイル変数
-            all_variables = {**file_variables, **DEFAULT_VARIABLES}
+            # 変数置換の優先順位: カスタム変数 > ファイル変数 > デフォルト変数
+            all_variables = {**DEFAULT_VARIABLES, **file_variables}
             if custom_variables:
                 all_variables.update(custom_variables)
 

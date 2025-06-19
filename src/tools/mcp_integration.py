@@ -10,10 +10,12 @@ from contextlib import AsyncExitStack
 from typing import Dict, Optional, Tuple
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseServerParams
-# from google.adk.tools.toolbox_tool import ToolboxTool  # 依存関係なしのため無効化
 
 from config import MCP_ENABLED, MCP_TIMEOUT_SECONDS
 from src.utils.logger import setup_logger
+
+# from google.adk.tools.toolbox_tool import ToolboxTool  # 依存関係なしのため無効化
+
 
 logger = setup_logger("mcp_integration")
 
@@ -71,11 +73,15 @@ async def get_tools_async() -> Tuple[
             f"{MCP_TIMEOUT_SECONDS} seconds"
         )
         # ToolboxTool フォールバックは無効化（依存関係なし）
-        logger.warning("Filesystem MCP connection failed, no fallback available")
+        logger.warning(
+            "Filesystem MCP connection failed, no fallback available"
+        )
     except Exception as e:
         logger.warning(f"Filesystem MCP connection failed: {e}")
         # ToolboxTool フォールバックは無効化（依存関係なし）
-        logger.warning("Filesystem MCP connection failed, no fallback available")
+        logger.warning(
+            "Filesystem MCP connection failed, no fallback available"
+        )
 
     # Notion MCP (localhost:3001) へSSEで接続
     try:
@@ -94,6 +100,7 @@ async def get_tools_async() -> Tuple[
             f"Notion MCP connection timed out after "
             f"{MCP_TIMEOUT_SECONDS} seconds"
         )
+        logger.warning("Notion MCP connection failed, no fallback available")
         # ToolboxTool フォールバックは無効化（依存関係なし）
         logger.warning("Notion MCP connection failed, no fallback available")
     except Exception as e:
