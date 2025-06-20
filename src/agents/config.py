@@ -177,6 +177,7 @@ AGENT_CONFIG = {
             "variables": {
                 "recipe_database_id": RECIPE_DATABASE_ID,
                 "required_tools": REQUIRED_TOOLS,
+                "error_prevention": ERROR_PREVENTION,
                 "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
                 "analysis_principle": "画像から実際に確認できる情報のみ",
                 "pipeline_name": "ImageRecipeExtractionPipeline",
