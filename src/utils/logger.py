@@ -5,22 +5,23 @@ def setup_logger(name):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
-    # Create file handler which logs even debug messages
+    # 既存ハンドラーをクリア（重複防止）
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # FileHandler, StreamHandler を logging から参照
     fh = logging.FileHandler("app.log")
     fh.setLevel(logging.DEBUG)
 
-    # Create console handler with a higher log level
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
 
-    # Create formatter and add it to the handlers
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
-    # Add the handlers to the logger
     logger.addHandler(fh)
     logger.addHandler(ch)
 

@@ -298,3 +298,20 @@ async def check_filesystem_health() -> bool:
         return os.path.exists(WORK_DIR) and os.path.isdir(WORK_DIR)
     except Exception:
         return False
+
+
+__all__ = [
+    "WORK_DIR",
+    "ALLOWED_DIRECTORIES",
+    "ensure_work_directory",
+    "_validate_path",
+    "read_file_tool",
+    "write_file_tool",
+    "list_directory_tool",
+    "create_directory_tool",
+    "delete_file_tool",
+    "list_allowed_directories",
+    "filesystem_tools",
+    "initialize_filesystem_service",
+    "check_filesystem_health",
+]

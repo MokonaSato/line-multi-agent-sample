@@ -382,8 +382,13 @@ class AgentFactory:
             or not reg_vars["recipe_database_id"]
         ):
             raise ValueError(
-                "image_recipe.registration_agent.variables['recipe_database_id'] "
-                "が未設定です。config.pyを確認してください。"
+                (
+                    (
+                        "image_recipe.registration_agent.variables"
+                        "['recipe_database_id'] が未設定です。"
+                        "config.pyを確認してください。"
+                    )
+                )
             )
         register_instruction = prompt_manager.get_prompt(
             register_cfg["prompt_key"], reg_vars

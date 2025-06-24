@@ -1,157 +1,95 @@
 # プロジェクト構造
 
-このドキュメントでは、プロジェクトの全体的なディレクトリ構造と主要なコンポーネントについて説明します。
+このドキュメントは、LINE Multi-Agent プロジェクトのディレクトリ構成と主要コンポーネントの概要を示します。
 
-## 基本構造
+## 1. ルートディレクトリ
 
 ```
 /workspace/
-├── config.py             # 全体的な設定ファイル
-├── Dockerfile            # Dockerコンテナ設定ファイル
-├── main.py               # FastAPIアプリケーションのエントリーポイント
-├── pyproject.toml        # Pythonプロジェクト設定ファイル
-├── README.md             # プロジェクト説明ファイル
-├── requirements.txt      # 必要なPythonパッケージの一覧
-└── uv.lock               # uv パッケージマネージャーのロックファイル
+├── config.py             # 全体設定
+├── Dockerfile            # Dockerビルド用
+├── main.py               # FastAPIアプリのエントリーポイント
+├── pyproject.toml        # Pythonプロジェクト設定
+├── README.md             # プロジェクト説明
+├── requirements.txt      # 依存パッケージ
+├── start.sh              # サービス起動スクリプト
+├── cloudbuild.yaml       # GCP Cloud Build 設定
+├── current-service.yaml  # Cloud Run サービス定義
+├── cloud-run-service.yaml# Cloud Run サービス定義
+└── ...
 ```
 
-## ソースコード
-
-`/src` ディレクトリには以下のような構造でプロジェクトのソースコードが含まれています。
+## 2. ソースコードディレクトリ
 
 ```
 /src/
-├── __init__.py           # Pythonパッケージとして認識させるためのファイル
-├── agents/               # エージェント関連のコード
-├── prompts/              # プロンプトテンプレート
-├── services/             # サービスレイヤーの実装
-├── tools/                # ツールの実装
-└── utils/                # ユーティリティ関数
-```
-
-### agents
-
-AI エージェントに関連するコンポーネントを実装しています。
-
-```
-/src/agents/
 ├── __init__.py
-├── agent_factory.py      # エージェントの生成を担当するファクトリークラス
-├── config.py             # エージェント固有の設定
-├── prompt_manager.py     # プロンプト管理クラス
-└── root_agent.py         # ルートエージェントの実装
+├── agents/               # エージェント定義・管理
+├── prompts/              # プロンプトテンプレート・設定
+├── services/             # サービス層（API/LINE連携等）
+├── tools/                # ツール実装
+└── utils/                # ユーティリティ
 ```
 
-### prompts
+### 2.1 agents
 
-エージェントやワークフローで使用されるプロンプトテンプレートが含まれています。
+- `agent_factory.py`: エージェント生成・管理
+- `config.py`: エージェント設定
+- `root_agent.py`: ルートエージェント
+- `prompt_manager.py`: プロンプト管理
+- `google_search_agent.py` など: 専門エージェント
 
-```
-/src/prompts/
-├── agents/               # エージェント別のプロンプト
-│   ├── calculator/       # 計算エージェント用プロンプト
-│   ├── notion/           # Notion関連のプロンプト
-│   ├── root/             # ルートエージェントのプロンプト
-│   └── vision/           # 画像処理エージェント用のプロンプト
-├── config.yaml           # プロンプト設定ファイル
-├── config/               # 設定関連プロンプト
-├── core/                 # コアプロンプト
-├── templates/            # 汎用テンプレート
-└── workflows/            # ワークフロー用プロンプト
-    └── recipe/           # レシピ関連ワークフロー
-        ├── image_extraction/  # 画像抽出処理
-        └── url_extraction/    # URL抽出処理
-```
+### 2.2 prompts
 
-### services
+- `agents/`: 各エージェント用プロンプト
+- `core/`, `templates/`, `workflows/`: 汎用・ワークフロー用
+- `config.yaml`: プロンプト設定
 
-アプリケーションの各種サービスを実装しています。
+### 2.3 services
 
-```
-/src/services/
-├── __init__.py
-├── agent_service/        # エージェントサービスの実装
-│   ├── __init__.py
-│   ├── constants.py      # 定数定義
-│   ├── executor.py       # 実行エンジン
-│   ├── message_handler.py # メッセージ処理
-│   ├── response_processor.py # レスポンス処理
-│   └── session_manager.py # セッション管理
-├── agent_service_impl.py # エージェントサービスの実装
-└── line_service/         # LINE連携サービス
-    ├── __init__.py
-    ├── client.py         # LINEクライアント
-    ├── constants.py      # 定数定義
-    └── handler.py        # イベントハンドラ
-```
+- `agent_service/`: エージェント API・セッション管理
+- `line_service/`: LINE 連携
+- `agent_service_impl.py`: サービス実装
 
-### tools
+### 2.4 tools
 
-エージェントが使用する各種ツールを実装しています。
+- `calculator_tools.py`: 計算ツール
+- `notion/`: Notion 連携
+- `filesystem_mcp.py`, `web_tools.py` など: 各種ツール
 
-```
-/src/tools/
-├── __init__.py
-├── calculator_tools.py   # 計算機能ツール
-├── notion/               # Notion連携ツール
-│   ├── __init__.py
-│   ├── api/              # Notion API クライアント
-│   │   ├── __init__.py
-│   │   ├── base.py       # 基底クラス
-│   │   ├── blocks.py     # ブロック操作
-│   │   ├── databases.py  # データベース操作
-│   │   └── pages.py      # ページ操作
-│   ├── client.py         # Notionクライアント
-│   ├── constants.py      # 定数定義
-│   ├── recipes/          # レシピ関連機能
-│   │   ├── __init__.py
-│   │   └── api.py        # レシピAPI
-│   └── utils.py          # ユーティリティ
-└── web_tools.py          # Web関連ツール
-```
+### 2.5 utils
 
-### utils
+- `logger.py`: ロギング
+- `file_utils.py`: ファイル操作
+- `prompt_manager.py`: プロンプト管理
 
-ユーティリティ関数を提供します。
-
-```
-/src/utils/
-├── __init__.py
-├── file_utils.py         # ファイル操作ユーティリティ
-├── logger.py             # ロギングユーティリティ
-└── prompt_manager.py     # プロンプト管理ユーティリティ
-```
-
-## テスト
-
-`/tests` ディレクトリにはテストコードが含まれています。
+## 3. テスト
 
 ```
 /tests/
-├── __pycache__/
-├── agents/               # エージェントのテスト
-│   ├── __pycache__/
-│   ├── test_google_search_agent.py
-│   ├── test_root_agent.py
-│   └── tools/            # ツールのテスト
-├── conftest.py           # pytest設定ファイル
-└── prompt_manager_test.py # プロンプトマネージャーのテスト
+├── test_*.py             # 各種ユニットテスト
+├── agents/               # エージェントテスト
+├── tools/                # ツールテスト
+└── ...
 ```
 
-## ドキュメント
-
-`/docs` ディレクトリにはプロジェクトに関するドキュメントが含まれています。
+## 4. ドキュメント
 
 ```
 /docs/
-├── adk_tutorial.ipynb    # ADK（AI開発キット）チュートリアル
-└── project_structure.md  # プロジェクト構造説明（このファイル）
+├── project_structure.md  # このファイル
+├── extension_guide.md    # 拡張ガイド
+├── adk_tutorial.ipynb    # チュートリアル
+└── ...
 ```
 
-## その他
+## 5. その他
 
-```
-/htmlcov/                 # コードカバレッジレポート
-/__pycache__/             # Pythonキャッシュファイル
-/.venv/                   # 仮想環境（gitignoreされている）
-```
+- `/htmlcov/`: カバレッジレポート
+- `/__pycache__/`: Python キャッシュ
+- `/tmp/`: 一時ファイル用（必要時のみ）
+
+---
+
+- すべての実装例・詳細なコードは省略しています。
+- 最新のディレクトリ・ファイル構成に合わせて随時更新してください。
