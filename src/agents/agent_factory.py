@@ -143,14 +143,60 @@ class AgentFactory:
             "Notion agent created with MCP tools and compatibility wrapper"
         )
 
-        # MCPツールセットにラッパーツールを組み合わせる
-        all_tools = [mcp_tools] + notion_mcp_wrapper_tools
+        # MCPツールセットを正しく扱う - Toolsetの場合はそのまま、リストの場合は展開
+        if hasattr(mcp_tools, "__iter__") and not isinstance(mcp_tools, str):
+            # MCPToolsetが反復可能な場合（ツールのリスト）
+            all_tools = list(mcp_tools) + notion_mcp_wrapper_tools
+        else:
+            # MCPToolsetが単一のツール/オブジェクトの場合
+            all_tools = [mcp_tools] + notion_mcp_wrapper_tools
+
+        # Validate required fields before creating LlmAgent
+        name = cfg["name"]
+        model = cfg["model"]
+        instruction = self.prompts[cfg["prompt_key"]]
+        description = cfg["description"]
+
+        if not name:
+            raise ValueError(f"Agent name is required but got: {name}")
+        if not model:
+            raise ValueError(f"Agent model is required but got: {model}")
+        if not instruction or instruction.startswith("Error"):
+            raise ValueError(
+                (
+                    "Valid instruction is required but got: "
+                    f"{instruction[:100]}..."
+                )
+            )
+        if not description:
+            raise ValueError(
+                f"Agent description is required but got: {description}"
+            )
+        if not isinstance(all_tools, list):
+            raise ValueError(
+                f"Tools must be a list but got: {type(all_tools)}"
+            )
+
+        logger.info(
+            (
+                f"Creating Notion LlmAgent with name={name}, model={model}, "
+                f"tools_count={len(all_tools)}"
+            )
+        )
+        logger.info(
+            f"Tools types: {[type(tool).__name__ for tool in all_tools]}"
+        )
+        for i, tool in enumerate(all_tools):
+            logger.info(
+                f"Tool {i}: {type(tool).__name__} - "
+                f"{getattr(tool, 'name', 'no name')}"
+            )
 
         return LlmAgent(
-            name=cfg["name"],
-            model=cfg["model"],
-            instruction=self.prompts[cfg["prompt_key"]],
-            description=cfg["description"],
+            name=name,
+            model=model,
+            instruction=instruction,
+            description=description,
             tools=all_tools,
             output_key=cfg.get("output_key"),
         )
@@ -223,7 +269,21 @@ class AgentFactory:
         )
 
         # 3. Notion Registration Agent
-        register_instruction = self.prompts[register_cfg["prompt_key"]]
+        from src.agents.prompt_manager import PromptManager
+
+        prompt_manager = PromptManager()
+        reg_vars = register_cfg.get("variables", {})
+        if (
+            "recipe_database_id" not in reg_vars
+            or not reg_vars["recipe_database_id"]
+        ):
+            raise ValueError(
+                "registration_agent.variables['recipe_database_id'] "
+                "が未設定です。config.pyを確認してください。"
+            )
+        register_instruction = prompt_manager.get_prompt(
+            register_cfg["prompt_key"], reg_vars
+        )
 
         # MCP ツールを取得
         mcp_tools = await self.get_notion_mcp_tools_async()
@@ -239,8 +299,15 @@ class AgentFactory:
 
             fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
         else:
-            # MCPツールセットとラッパーツールを組み合わせる
-            fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
+            # MCPツールセットを正しく扱う - Toolsetの場合はそのまま、リストの場合は展開
+            if hasattr(mcp_tools, "__iter__") and not isinstance(
+                mcp_tools, str
+            ):
+                # MCPToolsetが反復可能な場合（ツールのリスト）
+                fallback_tools = list(mcp_tools) + notion_mcp_wrapper_tools
+            else:
+                # MCPToolsetが単一のツール/オブジェクトの場合
+                fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
 
         notion_registration_agent = LlmAgent(
             name=register_cfg["name"],
@@ -272,7 +339,6 @@ class AgentFactory:
         pipe_cfg = img_cfg["pipeline"]
 
         # 1. Image Analysis Agent
-        # カスタム変数でプロンプトを取得
         from src.agents.prompt_manager import PromptManager
 
         prompt_manager = PromptManager()
@@ -290,11 +356,9 @@ class AgentFactory:
         )
 
         # 2. Image Data Enhancement Agent
-        # カスタム変数でプロンプトを取得
         enhancement_prompt = prompt_manager.get_prompt(
             enhance_cfg["prompt_key"], enhance_cfg.get("variables", {})
         )
-        # コンテキスト変数を正しく設定
         enhancement_prompt = enhancement_prompt.replace(
             "{extracted_recipe_data}", "{extracted_image_data}"
         )
@@ -309,28 +373,82 @@ class AgentFactory:
         )
 
         # 3. Recipe Notion Agent - MCP ツール対応
-        # MCP ツールを取得
-        mcp_tools = await self.get_notion_mcp_tools_async()
+        from src.agents.prompt_manager import PromptManager
 
-        # MCPツールセットが利用できない場合、従来のAPIツールを使用
+        prompt_manager = PromptManager()
+        reg_vars = register_cfg.get("variables", {})
+        if (
+            "recipe_database_id" not in reg_vars
+            or not reg_vars["recipe_database_id"]
+        ):
+            raise ValueError(
+                "image_recipe.registration_agent.variables['recipe_database_id'] "
+                "が未設定です。config.pyを確認してください。"
+            )
+        register_instruction = prompt_manager.get_prompt(
+            register_cfg["prompt_key"], reg_vars
+        )
+        mcp_tools = await self.get_notion_mcp_tools_async()
         if not mcp_tools:
             logger.warning(
                 "Notion MCP Toolset is not available for image recipe "
                 "pipeline. Using legacy Notion API tools as fallback."
             )
-            # 従来のAPIツールを使用
             from src.tools.notion import TOOLS
 
             fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
         else:
-            # MCPツールセットとラッパーツールを組み合わせる
-            fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
+            if hasattr(mcp_tools, "__iter__") and not isinstance(
+                mcp_tools, str
+            ):
+                fallback_tools = list(mcp_tools) + notion_mcp_wrapper_tools
+            else:
+                fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
+
+        # Validate required fields before creating LlmAgent
+        name = register_cfg["name"]
+        model = register_cfg["model"]
+        instruction = register_instruction
+        description = register_cfg["description"]
+
+        if not name:
+            raise ValueError(f"Agent name is required but got: {name}")
+        if not model:
+            raise ValueError(f"Agent model is required but got: {model}")
+        if not instruction or instruction.startswith("Error"):
+            raise ValueError(
+                (
+                    "Valid instruction is required but got: "
+                    f"{instruction[:100]}..."
+                )
+            )
+        if not description:
+            raise ValueError(
+                f"Agent description is required but got: {description}"
+            )
+        if not isinstance(fallback_tools, list):
+            raise ValueError(
+                f"Tools must be a list but got: {type(fallback_tools)}"
+            )
+
+        logger.info(
+            f"Creating Image Recipe Notion LlmAgent with name={name}, "
+            f"model={model}, tools_count={len(fallback_tools)}"
+        )
+        logger.info(
+            f"Tools types: {[type(tool).__name__ for tool in fallback_tools]}"
+        )
+        for i, tool in enumerate(fallback_tools):
+            logger.info(
+                f"Tool {i}: {type(tool).__name__} - "
+                f"{getattr(tool, 'name', 'no name')}"
+            )
 
         recipe_notion_agent = LlmAgent(
-            name=register_cfg["name"],
-            model=register_cfg["model"],
-            instruction=self.prompts[register_cfg["prompt_key"]],
-            description=register_cfg["description"],
+            name=name,
+            model=model,
+            instruction=instruction,
+            description=description,
             tools=fallback_tools,
             output_key=register_cfg["output_key"],
         )
@@ -418,13 +536,19 @@ class AgentFactory:
             agents["notion_agent"] = await self.create_notion_agent()
             logger.info("✅ Notion agent created")
         except Exception as e:
+            import traceback
+
             logger.warning(f"Notion agent creation failed: {e}")
+            logger.warning(f"Detailed error: {traceback.format_exc()}")
 
         try:
             agents["filesystem_agent"] = await self.create_filesystem_agent()
             logger.info("✅ Filesystem agent created")
         except Exception as e:
+            import traceback
+
             logger.warning(f"Filesystem agent creation failed: {e}")
+            logger.warning(f"Detailed error: {traceback.format_exc()}")
 
         try:
             agents["url_recipe_workflow_agent"] = (
@@ -432,7 +556,10 @@ class AgentFactory:
             )
             logger.info("✅ URL recipe workflow agent created")
         except Exception as e:
+            import traceback
+
             logger.warning(f"URL recipe workflow agent creation failed: {e}")
+            logger.warning(f"Detailed error: {traceback.format_exc()}")
 
         try:
             agents["image_recipe_workflow_agent"] = (
@@ -440,7 +567,10 @@ class AgentFactory:
             )
             logger.info("✅ Image recipe workflow agent created")
         except Exception as e:
+            import traceback
+
             logger.warning(f"Image recipe workflow agent creation failed: {e}")
+            logger.warning(f"Detailed error: {traceback.format_exc()}")
 
         # パイプラインを直接利用可能にする
         try:
@@ -457,9 +587,12 @@ class AgentFactory:
             )
             logger.info("✅ ImageRecipeExtractionPipeline created")
         except Exception as e:
+            import traceback
+
             logger.warning(
                 f"ImageRecipeExtractionPipeline creation failed: {e}"
             )
+            logger.warning(f"Detailed error: {traceback.format_exc()}")
 
         logger.info(f"Created {len(agents)} agents successfully")
         return agents
