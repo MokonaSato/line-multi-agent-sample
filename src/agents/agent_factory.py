@@ -15,7 +15,6 @@ from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
 from src.tools.calculator_tools import calculator_tools_list
 from src.tools.mcp_integration import get_tools_async
-from src.tools.notion_mcp_wrapper import notion_mcp_wrapper_tools
 from src.tools.web_tools import fetch_web_content
 from src.utils.logger import setup_logger
 
@@ -112,44 +111,23 @@ class AgentFactory:
         # MCP ツールを取得
         mcp_tools = await self.get_notion_mcp_tools_async()
 
-        # MCPツールセットが利用できない場合、従来のNotion APIツールを使用
+        # MCPツールセットが利用できない場合はエラー
         if not mcp_tools:
-            logger.warning(
+            raise RuntimeError(
                 "Notion MCP Toolset is not available. "
-                "Using legacy Notion API tools with wrapper as fallback."
-            )
-            # 従来のAPIツールを使用
-            from src.tools.notion import TOOLS
-
-            fallback_tools = TOOLS["general"]  # 汎用的な操作セットを使用
-
-            # フォールバック時でもラッパーツールを追加
-            all_tools = fallback_tools + notion_mcp_wrapper_tools
-
-            return LlmAgent(
-                name=cfg["name"],
-                model=cfg["model"],
-                instruction=self.prompts[cfg["prompt_key"]],
-                description=(
-                    cfg["description"]
-                    + " (using legacy API tools with MCP wrapper)"
-                ),
-                tools=all_tools,
-                output_key=cfg.get("output_key"),
+                "MCP Server connection is required for Notion operations."
             )
 
-        # MCPツールセットが利用可能な場合、ラッパーツールも追加
-        logger.info(
-            "Notion agent created with MCP tools and compatibility wrapper"
-        )
+        # MCPツールセットが利用可能な場合のみエージェント作成
+        logger.info("Notion agent created with MCP tools")
 
         # MCPツールセットを正しく扱う - Toolsetの場合はそのまま、リストの場合は展開
         if hasattr(mcp_tools, "__iter__") and not isinstance(mcp_tools, str):
             # MCPToolsetが反復可能な場合（ツールのリスト）
-            all_tools = list(mcp_tools) + notion_mcp_wrapper_tools
+            all_tools = list(mcp_tools)
         else:
             # MCPToolsetが単一のツール/オブジェクトの場合
-            all_tools = [mcp_tools] + notion_mcp_wrapper_tools
+            all_tools = [mcp_tools]
 
         # Validate required fields before creating LlmAgent
         name = cfg["name"]
@@ -288,33 +266,27 @@ class AgentFactory:
         # MCP ツールを取得
         mcp_tools = await self.get_notion_mcp_tools_async()
 
-        # MCPツールセットが利用できない場合、従来のAPIツールを使用
+        # MCPツールセットが利用できない場合はエラー
         if not mcp_tools:
-            logger.warning(
+            raise RuntimeError(
                 "Notion MCP Toolset is not available for URL recipe pipeline. "
-                "Using legacy Notion API tools as fallback."
+                "MCP Server connection is required for Notion operations."
             )
-            # 従来のAPIツールを使用
-            from src.tools.notion import TOOLS
 
-            fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
+        # MCPツールセットを正しく扱う - Toolsetの場合はそのまま、リストの場合は展開
+        if hasattr(mcp_tools, "__iter__") and not isinstance(mcp_tools, str):
+            # MCPToolsetが反復可能な場合（ツールのリスト）
+            notion_tools = list(mcp_tools)
         else:
-            # MCPツールセットを正しく扱う - Toolsetの場合はそのまま、リストの場合は展開
-            if hasattr(mcp_tools, "__iter__") and not isinstance(
-                mcp_tools, str
-            ):
-                # MCPToolsetが反復可能な場合（ツールのリスト）
-                fallback_tools = list(mcp_tools) + notion_mcp_wrapper_tools
-            else:
-                # MCPToolsetが単一のツール/オブジェクトの場合
-                fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
+            # MCPToolsetが単一のツール/オブジェクトの場合
+            notion_tools = [mcp_tools]
 
         notion_registration_agent = LlmAgent(
             name=register_cfg["name"],
             model=register_cfg["model"],
             instruction=register_instruction,
             description=register_cfg["description"],
-            tools=fallback_tools,
+            tools=notion_tools,
             output_key=register_cfg["output_key"],
         )
 
@@ -395,20 +367,15 @@ class AgentFactory:
         )
         mcp_tools = await self.get_notion_mcp_tools_async()
         if not mcp_tools:
-            logger.warning(
-                "Notion MCP Toolset is not available for image recipe "
-                "pipeline. Using legacy Notion API tools as fallback."
+            raise RuntimeError(
+                "Notion MCP Toolset is not available for image recipe pipeline. "
+                "MCP Server connection is required for Notion operations."
             )
-            from src.tools.notion import TOOLS
 
-            fallback_tools = TOOLS["recipes"] + TOOLS["pages"]
+        if hasattr(mcp_tools, "__iter__") and not isinstance(mcp_tools, str):
+            notion_tools = list(mcp_tools)
         else:
-            if hasattr(mcp_tools, "__iter__") and not isinstance(
-                mcp_tools, str
-            ):
-                fallback_tools = list(mcp_tools) + notion_mcp_wrapper_tools
-            else:
-                fallback_tools = [mcp_tools] + notion_mcp_wrapper_tools
+            notion_tools = [mcp_tools]
 
         # Validate required fields before creating LlmAgent
         name = register_cfg["name"]
@@ -431,19 +398,19 @@ class AgentFactory:
             raise ValueError(
                 f"Agent description is required but got: {description}"
             )
-        if not isinstance(fallback_tools, list):
+        if not isinstance(notion_tools, list):
             raise ValueError(
-                f"Tools must be a list but got: {type(fallback_tools)}"
+                f"Tools must be a list but got: {type(notion_tools)}"
             )
 
         logger.info(
             f"Creating Image Recipe Notion LlmAgent with name={name}, "
-            f"model={model}, tools_count={len(fallback_tools)}"
+            f"model={model}, tools_count={len(notion_tools)}"
         )
         logger.info(
-            f"Tools types: {[type(tool).__name__ for tool in fallback_tools]}"
+            f"Tools types: {[type(tool).__name__ for tool in notion_tools]}"
         )
-        for i, tool in enumerate(fallback_tools):
+        for i, tool in enumerate(notion_tools):
             logger.info(
                 f"Tool {i}: {type(tool).__name__} - "
                 f"{getattr(tool, 'name', 'no name')}"
@@ -454,7 +421,7 @@ class AgentFactory:
             model=model,
             instruction=instruction,
             description=description,
-            tools=fallback_tools,
+            tools=notion_tools,
             output_key=register_cfg["output_key"],
         )
 

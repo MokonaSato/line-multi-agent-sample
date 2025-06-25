@@ -13,18 +13,15 @@ flowchart TD
         lifespan --> check_mcp[check_mcp_server_health/1]
         health_check[health_check/1] --> check_fs_health[check_filesystem_health/1]
         health_check --> check_mcp_health[check_mcp_server_health/1]
-        test_agent[test_agent_endpoint/1] --> create_agent[create_agent/1]
-        test_image[test_image_recipe/1] --> agent_execute[_execute_single_attempt/1]
     end
 
     subgraph "agent_service_impl.py - Agent Service Layer"
         init_agent --> as_init[AgentService.init_agent/1]
-        as_init --> create_agent
-        call_agent_async[call_agent_async/1] --> call_agent_text[call_agent_text/1]
-        call_agent_with_image[call_agent_with_image_async/1] --> call_agent_image[call_agent_with_image/1]
-        call_agent_text --> execute_attempt[_execute_single_attempt/1]
-        call_agent_image --> execute_attempt
-        execute_attempt --> execute_response[execute_and_get_response/1]
+        as_init --> create_agent[create_agent/1]
+        call_agent_async[call_agent_async/1] --> execute_response[execute_and_get_response/1]
+        call_agent_with_image[call_agent_with_image_async/1] --> execute_response
+        execute_response --> execute_attempt[_execute_single_attempt/1]
+        execute_attempt --> token_limit_handler[_handle_token_limit_error/1]
         cleanup_resources[cleanup_resources/1] --> cleanup_exit[cleanup_exit_stack/1]
     end
 
@@ -60,27 +57,31 @@ flowchart TD
         create_all_agents --> create_fs[create_filesystem_agent/1]
         create_all_agents --> create_url_pipeline[create_url_recipe_pipeline/1]
         create_all_agents --> create_image_pipeline[create_image_recipe_pipeline/1]
+        create_all_agents --> create_url_workflow[create_url_recipe_workflow_agent/1]
+        create_all_agents --> create_image_workflow[create_image_recipe_workflow_agent/1]
         create_root --> get_prompt[get_prompt/1]
     end
 
     subgraph "agents/prompt_manager.py - Prompt Manager"
         create_prompt_mgr --> get_all_prompts[get_all_prompts/1]
         get_prompt --> read_prompt[read_prompt_file/1]
-        get_prompt --> substitute_vars[variable_substitution/1]
-        get_prompt --> process_template[template_processing/1]
+        get_prompt --> substitute_vars[_replace_variables_with_dict/1]
+        get_prompt --> process_template[_process_template_blocks/1]
     end
 
     subgraph "tools/mcp_integration.py - MCP Integration"
         get_mcp_tools --> check_mcp_enabled[MCP_ENABLED/1]
         check_mcp --> get_available_tools[get_available_mcp_tools/1]
         get_mcp_tools --> create_toolset[MCPToolset.from_server/1]
+        check_mcp_health --> notion_health[check_notion_mcp_health/1]
+        check_mcp_health --> fs_health[check_filesystem_mcp_health/1]
     end
 
     subgraph "tools/calculator_tools.py - Calculator Tools"
-        create_calc --> calc_tools[calculator_tools_list/1]
+        create_calc --> calc_tools[calculator_tools/1]
         calc_tools --> add_nums[add_numbers/1]
         calc_tools --> subtract_nums[subtract_numbers/1]
-        calc_tools --> multiply_nums[multiply_numbers/1]
+        calc_tools --> multiply_nums[multiply_nums/1]
         calc_tools --> divide_nums[divide_numbers/1]
     end
 
@@ -90,15 +91,22 @@ flowchart TD
         fetch_web --> parse_html[BeautifulSoup/1]
     end
 
-    subgraph "tools/notion/ - Notion Tools"
-        create_notion --> notion_wrapper[notion_mcp_wrapper_tools/1]
-        notion_wrapper --> notion_api[Notion API calls/1]
+    subgraph "tools/mcp_servers - MCP Only"
+        create_notion --> notion_mcp[MCPToolset Notion/1]
+        create_fs --> filesystem_mcp[MCPToolset Filesystem/1]
+        notion_mcp --> mcp_create_page[notion_create_page_mcp/1]
+        notion_mcp --> mcp_query_db[notion_query_database_mcp/1]
+        filesystem_mcp --> mcp_read_file[filesystem_read_file_mcp/1]
+        filesystem_mcp --> mcp_write_file[filesystem_write_file_mcp/1]
     end
 
     subgraph "tools/filesystem.py - Filesystem Tools"
-        init_filesystem --> fs_init[filesystem initialization/1]
-        create_fs --> fs_tools[filesystem tools/1]
-        check_fs_health --> fs_health[filesystem health check/1]
+        init_filesystem --> ensure_work_dir[ensure_work_directory/1]
+        check_fs_health --> validate_work_dir[validate work directory/1]
+        create_fs --> fs_tools[filesystem_tools/1]
+        fs_tools --> read_file[read_file_tool/1]
+        fs_tools --> write_file[write_file_tool/1]
+        fs_tools --> list_dir[list_directory_tool/1]
     end
 
     subgraph "utils/logger.py - Logging"
@@ -106,7 +114,7 @@ flowchart TD
     end
 
     subgraph "utils/file_utils.py - File Utils"
-        read_prompt --> read_file[file operations/1]
+        read_prompt --> read_file_util[read_prompt_file/1]
     end
 
     %% Style the subgraphs
@@ -114,12 +122,14 @@ flowchart TD
     classDef service fill:#f3e5f5
     classDef agent fill:#e8f5e8
     classDef tool fill:#fff3e0
+    classDef mcp fill:#e8f0fe
     classDef util fill:#fafafa
 
-    class callback,process_events,lifespan,health_check,test_agent,test_image mainApp
+    class callback,process_events,lifespan,health_check mainApp
     class init_agent,call_agent_async,call_agent_with_image,execute_attempt,cleanup_resources service
     class create_agent,create_factory,create_all_agents,get_prompt,create_prompt_mgr agent
-    class get_mcp_tools,calc_tools,fetch_web,notion_wrapper,fs_init tool
+    class calc_tools,fetch_web,fs_tools tool
+    class notion_mcp,filesystem_mcp,mcp_create_page,mcp_query_db,mcp_read_file,mcp_write_file mcp
     class setup_logger,read_prompt util
 ```
 
@@ -148,6 +158,14 @@ sequenceDiagram
         Handler->>Service: call_agent_with_image_async()
     end
     
+    Service->>Service: execute_and_get_response()
+    Service->>Service: _execute_single_attempt()
+    
+    alt Token Limit Error
+        Service->>Service: _handle_token_limit_error()
+        Service->>Service: retry with reduced content
+    end
+    
     Service->>Agent: execute via Google ADK
     Agent-->>Service: response
     Service-->>Handler: response
@@ -169,8 +187,10 @@ sequenceDiagram
     Main->>Service: init_agent()
     Service->>Root: create_agent()
     Root->>PromptMgr: PromptManager()
+    PromptMgr->>PromptMgr: get_all_prompts()
     Root->>Factory: AgentFactory()
     Factory->>MCP: get_tools_async()
+    MCP->>MCP: check_mcp_server_health()
     MCP-->>Factory: MCP tools
     Factory->>Factory: create_all_standard_agents()
     Factory->>Root: create_root_agent()
@@ -183,44 +203,55 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     subgraph "agents/prompt_manager.py"
-        A[get_prompt] --> B[read_prompt_file]
-        B --> C[parse YAML metadata]
-        C --> D[variable substitution]
-        D --> E[template processing]
-        E --> F[return cached prompt]
+        A[get_prompt] --> B[check_cache]
+        B --> C[read_prompt_file]
+        C --> D[extract_file_variables]
+        D --> E[_replace_variables_with_dict]
+        E --> F[_process_template_blocks]
+        F --> G[cache_result]
+        G --> H[return processed prompt]
     end
     
     subgraph "utils/file_utils.py"
-        B --> G[file system read]
+        C --> I[read_prompt_file]
     end
 ```
 
-### 4. ツール統合フロー
+### 4. エラーハンドリングと再試行フロー
 
 ```mermaid
 flowchart TD
-    subgraph "Agent Creation"
-        A[AgentFactory] --> B[create_calculator_agent]
-        A --> C[create_notion_agent]
-        A --> D[create_vision_agent]
-        A --> E[create_filesystem_agent]
-    end
-    
-    subgraph "Tool Integration"
-        B --> F[calculator_tools_list]
-        C --> G[notion_mcp_wrapper_tools]
-        D --> H[vision tools]
-        E --> I[filesystem tools]
-    end
-    
+    A[execute_and_get_response] --> B[_execute_single_attempt]
+    B --> C{Success?}
+    C -->|Yes| D[Return response]
+    C -->|No| E{Token limit error?}
+    E -->|Yes| F[_handle_token_limit_error]
+    F --> G[Reduce message size]
+    G --> H{Retry count < MAX?}
+    H -->|Yes| B
+    H -->|No| I[Return shortened response]
+    E -->|No| J{Other error?}
+    J -->|Yes| K[Log error]
+    K --> L[Return error response]
+    J -->|No| B
+```
+
+### 5. MCP ツール統合フロー
+
+```mermaid
+flowchart TD
     subgraph "MCP Integration"
-        J[mcp_integration] --> K[get_tools_async]
-        K --> L[MCPToolset.from_server]
-        L --> M[integrate into agents]
+        A[get_tools_async] --> B{MCP_ENABLED?}
+        B -->|Yes| C[get_available_mcp_tools]
+        C --> D[notion MCP server]
+        C --> E[filesystem MCP server]
+        D --> F[check_notion_mcp_health]
+        E --> G[check_filesystem_mcp_health]
+        F --> H[MCPToolset.from_server]
+        G --> H
+        H --> I[integrate into agents]
+        B -->|No| J[skip MCP integration]
     end
-    
-    G --> J
-    I --> J
 ```
 
 ## ファイル別主要関数一覧
@@ -228,22 +259,27 @@ flowchart TD
 ### main.py
 - `lifespan()` - FastAPIライフサイクル管理
 - `process_events()` - LINEイベント処理
-- `callback()` - Webhookエンドポイント
+- `callback()` - LINE Webhookエンドポイント
 - `health_check()` - ヘルスチェック
-- `test_agent_endpoint()` - エージェントテスト
-- `test_image_recipe()` - 画像レシピテスト
 
 ### agent_service_impl.py
 - `init_agent()` - エージェント初期化
 - `call_agent_async()` - テキストメッセージ処理
 - `call_agent_with_image_async()` - 画像メッセージ処理
+- `execute_and_get_response()` - メイン実行ロジック（リトライ付き）
+- `_execute_single_attempt()` - 単一実行試行
+- `_handle_token_limit_error()` - トークン制限エラー処理
 - `cleanup_resources()` - リソースクリーンアップ
-- `AgentService._execute_single_attempt()` - 単一実行試行
 
 ### line_service/handler.py
 - `handle_event()` - LINEイベントハンドラー
 - `handle_text_message()` - テキストメッセージ処理
 - `handle_image_message()` - 画像メッセージ処理
+
+### line_service/client.py
+- `parse_webhook_events()` - Webhookイベント解析
+- `reply_text()` - テキスト返信
+- `get_message_content()` - メッセージ内容取得
 
 ### agents/root_agent.py
 - `create_agent()` - ルートエージェント作成
@@ -251,16 +287,61 @@ flowchart TD
 ### agents/agent_factory.py
 - `create_all_standard_agents()` - 全エージェント作成
 - `create_calculator_agent()` - 計算エージェント作成
-- `create_notion_agent()` - Notionエージェント作成
+- `create_notion_agent()` - Notionエージェント作成（MCP必須）
 - `create_vision_agent()` - ビジョンエージェント作成
-- `create_filesystem_agent()` - ファイルシステムエージェント作成
+- `create_filesystem_agent()` - ファイルシステムエージェント作成（MCP必須）
+- `create_url_recipe_pipeline()` - URLレシピパイプライン作成（MCP必須）
+- `create_image_recipe_pipeline()` - 画像レシピパイプライン作成（MCP必須）
+- `create_url_recipe_workflow_agent()` - URLレシピワークフローエージェント作成
+- `create_image_recipe_workflow_agent()` - 画像レシピワークフローエージェント作成
 
 ### agents/prompt_manager.py
-- `get_prompt()` - プロンプト取得
+- `get_prompt()` - プロンプト取得（キャッシュ付き）
 - `get_all_prompts()` - 全プロンプト読み込み
+- `_replace_variables_with_dict()` - 変数置換
+- `_process_template_blocks()` - テンプレートブロック処理
 
 ### tools/mcp_integration.py
 - `get_tools_async()` - MCPツール取得
 - `check_mcp_server_health()` - MCPサーバーヘルスチェック
+- `get_available_mcp_tools()` - 利用可能MCPツール取得
 
-このフローチャートは、LINE Multi-Agentアプリケーションの複雑な関数呼び出し関係を可視化し、システム全体のアーキテクチャを理解するのに役立ちます。
+### tools/mcp_integration.py
+- **get_tools_async()**: MCPサーバーからのツール取得
+- **check_mcp_server_health()**: MCPサーバーヘルスチェック  
+- **MCPToolset.from_server()**: MCP接続とツールセット作成
+
+### tools/filesystem.py
+- `initialize_filesystem_service()` - ファイルシステム初期化
+- `check_filesystem_health()` - ファイルシステムヘルスチェック
+- `filesystem_tools` - ファイル操作ツール群
+
+## アーキテクチャの特徴
+
+### 1. MCP完全統合
+- Notion操作はMCPサーバー経由のみ（フォールバック廃止）
+- Filesystem操作もMCP統合
+- 従来のNotion APIツールは完全削除
+
+### 2. エラー耐性
+- トークン制限エラーの自動処理
+- リトライメカニズム
+- 堅牢なエラーハンドリング
+- MCP接続必須による一貫性保証
+
+### 3. モジュラー設計
+- 各エージェントが独立したツールセットを持つ
+- MCP統合による外部サービス連携
+- プロンプト管理の集約化
+
+### 4. スケーラビリティ
+- エージェントファクトリーパターン
+- 設定駆動のエージェント作成
+- ツールの動的統合
+
+### 5. 運用の簡素化
+- APIキー管理不要（MCPサーバー経由）
+- 統一されたツールインターフェース
+- メンテナンス性の向上
+
+このフローチャートは、LINE Multi-Agentアプリケーションの最新のアーキテクチャと関数呼び出し関係を表しており、システム全体の理解とメンテナンスに役立ちます。
