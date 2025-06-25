@@ -18,10 +18,6 @@ from src.services.agent_service_impl import (
     init_agent,
 )
 from src.services.line_service import LineClient, LineEventHandler
-from src.tools.filesystem import (
-    check_filesystem_health,
-    initialize_filesystem_service,
-)
 from src.tools.mcp_integration import check_mcp_server_health
 from src.utils.logger import setup_logger
 
@@ -47,10 +43,8 @@ async def lifespan(app: FastAPI):
         cleanup_tasks.append(cleanup_resources)
         logger.info("✅ Agent initialization completed")
 
-        # ファイルシステムサービスの初期化
-        logger.info("Initializing filesystem service...")
-        await initialize_filesystem_service()
-        logger.info("✅ Filesystem service initialization completed")
+        # ファイルシステム初期化はMCPサーバーが処理
+        logger.info("Filesystem initialization handled by MCP server")
 
         # Notion MCP サービスの初期化とヘルスチェック
         logger.info("Checking MCP server health...")
@@ -158,15 +152,14 @@ async def health_check():
         dict: ステータス情報
     """
     try:
-        # 各サービスのヘルスチェック
-        filesystem_ok = await check_filesystem_health()
-
-        # MCPヘルスチェックもエラーハンドリング追加
+        # MCPサーバーのヘルスチェック（FilesystemとNotion統合）
         try:
             mcp_health = await check_mcp_server_health()
+            filesystem_ok = mcp_health.get("filesystem", False)
         except Exception as e:
             logger.warning(f"MCP health check failed in endpoint: {e}")
             mcp_health = {"filesystem": False, "notion": False}
+            filesystem_ok = False
 
         all_services_ok = filesystem_ok and all(mcp_health.values())
         status = "ok" if all_services_ok else "degraded"

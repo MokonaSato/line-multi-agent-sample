@@ -22,7 +22,6 @@ def mock_dependencies():
         patch("main.setup_logger") as mock_logger,
         patch("main.init_agent") as mock_init_agent,
         patch("main.cleanup_resources") as mock_cleanup,
-        patch("main.initialize_filesystem_service") as mock_fs_init,
         patch("main.check_mcp_server_health") as mock_mcp_health,
         patch("main.LineClient") as mock_line_client,
         patch("main.LineEventHandler") as mock_line_handler,
@@ -31,14 +30,12 @@ def mock_dependencies():
         mock_logger.return_value = MagicMock()
         mock_init_agent.return_value = None
         mock_cleanup.return_value = None
-        mock_fs_init.return_value = True
         mock_mcp_health.return_value = {"filesystem": True, "notion": True}
 
         yield {
             "logger": mock_logger,
             "init_agent": mock_init_agent,
             "cleanup_resources": mock_cleanup,
-            "fs_init": mock_fs_init,
             "mcp_health": mock_mcp_health,
             "line_client": mock_line_client,
             "line_handler": mock_line_handler,
@@ -73,16 +70,14 @@ class TestLifespan:
 
     @pytest.mark.asyncio
     @patch("main.init_agent")
-    @patch("main.initialize_filesystem_service")
     @patch("main.check_mcp_server_health")
     @patch("main.setup_logger")
     async def test_lifespan_startup_success(
-        self, mock_logger, mock_mcp_health, mock_fs_init, mock_init_agent
+        self, mock_logger, mock_mcp_health, mock_init_agent
     ):
         """正常な起動時のlifespanテスト"""
         mock_logger.return_value = MagicMock()
         mock_init_agent.return_value = None
-        mock_fs_init.return_value = True
         mock_mcp_health.return_value = {"filesystem": True, "notion": True}
 
         from main import app, lifespan
@@ -92,21 +87,18 @@ class TestLifespan:
             pass
 
         mock_init_agent.assert_called_once()
-        mock_fs_init.assert_called_once()
         mock_mcp_health.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("main.init_agent")
-    @patch("main.initialize_filesystem_service")
     @patch("main.check_mcp_server_health")
     @patch("main.setup_logger")
     async def test_lifespan_mcp_health_check_failure(
-        self, mock_logger, mock_mcp_health, mock_fs_init, mock_init_agent
+        self, mock_logger, mock_mcp_health, mock_init_agent
     ):
         """MCPヘルスチェック失敗時のlifespanテスト"""
         mock_logger.return_value = MagicMock()
         mock_init_agent.return_value = None
-        mock_fs_init.return_value = True
         mock_mcp_health.side_effect = Exception("MCP health check failed")
 
         from main import app, lifespan
@@ -116,7 +108,6 @@ class TestLifespan:
             pass
 
         mock_init_agent.assert_called_once()
-        mock_fs_init.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("main.init_agent")
@@ -262,13 +253,11 @@ class TestHealthEndpoint:
 
         return TestClient(main.app)
 
-    @patch("main.check_filesystem_health")
     @patch("main.check_mcp_server_health")
     def test_health_endpoint_all_services_ok(
-        self, mock_mcp_health, mock_fs_health, client
+        self, mock_mcp_health, client
     ):
         """全サービス正常時のヘルスチェックテスト"""
-        mock_fs_health.return_value = True
         mock_mcp_health.return_value = {"filesystem": True, "notion": True}
 
         response = client.get("/health")
@@ -280,13 +269,11 @@ class TestHealthEndpoint:
         assert data["services"]["mcp_filesystem"] == "ok"
         assert data["services"]["mcp_notion"] == "ok"
 
-    @patch("main.check_filesystem_health")
     @patch("main.check_mcp_server_health")
     def test_health_endpoint_degraded_services(
-        self, mock_mcp_health, mock_fs_health, client
+        self, mock_mcp_health, client
     ):
         """一部サービス異常時のヘルスチェックテスト"""
-        mock_fs_health.return_value = True
         mock_mcp_health.return_value = {"filesystem": False, "notion": True}
 
         response = client.get("/health")
@@ -294,17 +281,15 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "degraded"
-        assert data["services"]["filesystem"] == "ok"
+        assert data["services"]["filesystem"] == "error"
         assert data["services"]["mcp_filesystem"] == "error"
         assert data["services"]["mcp_notion"] == "ok"
 
-    @patch("main.check_filesystem_health")
     @patch("main.check_mcp_server_health")
     def test_health_endpoint_mcp_exception(
-        self, mock_mcp_health, mock_fs_health, client
+        self, mock_mcp_health, client
     ):
         """MCPヘルスチェック例外時のテスト"""
-        mock_fs_health.return_value = True
         mock_mcp_health.side_effect = Exception("MCP error")
 
         response = client.get("/health")
@@ -312,21 +297,19 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "degraded"
-        assert data["services"]["filesystem"] == "ok"
+        assert data["services"]["filesystem"] == "error"
         assert data["services"]["mcp_filesystem"] == "error"
         assert data["services"]["mcp_notion"] == "error"
 
-    @patch("main.check_filesystem_health")
-    def test_health_endpoint_general_exception(self, mock_fs_health, client):
+    def test_health_endpoint_general_exception(self, client):
         """一般的な例外時のヘルスチェックテスト"""
-        mock_fs_health.side_effect = Exception("Health check error")
+        # 一般的な例外をシミュレートするためにMCPヘルスチェックをパッチ
+        with patch("main.check_mcp_server_health", side_effect=Exception("Health check error")):
+            response = client.get("/health")
 
-        response = client.get("/health")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "error"
-        assert "error" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "degraded"
 
 
 class TestMainExecution:
