@@ -1,7 +1,7 @@
 """シンプルなプロンプト管理モジュール
 
-直接的なファイル読み込みと基本的な変数置換機能を提供する
-シンプルなプロンプト管理システムです。
+基本的なファイル読み込みと簡単な変数置換機能のみを提供する
+軽量なプロンプト管理システムです。
 """
 
 import os
@@ -15,7 +15,7 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("prompt_manager")
 
-# プロンプトファイルの直接マッピング（実際のファイルパス）
+# 実際に使用されているプロンプトファイルのマッピング
 PROMPT_FILE_MAPPING = {
     # エージェント用プロンプト
     "root": "agents/root/main.txt",
@@ -25,16 +25,12 @@ PROMPT_FILE_MAPPING = {
     "vision": "agents/vision/main.txt",
     # URLレシピワークフロー
     "recipe_extraction": "workflows/recipe/url_extraction/extraction.txt",
-    "data_transformation": (
-        "workflows/recipe/url_extraction/transformation.txt"
-    ),
+    "data_transformation": "workflows/recipe/url_extraction/transformation.txt",
     "recipe_notion": "workflows/recipe/url_extraction/notion.txt",
     "recipe_workflow": "workflows/recipe/url_extraction/workflow.txt",
     # 画像レシピワークフロー
     "image_analysis": "workflows/recipe/image_extraction/analysis.txt",
-    "image_data_enhancement": (
-        "workflows/recipe/image_extraction/enhancement.txt"
-    ),
+    "image_data_enhancement": "workflows/recipe/image_extraction/enhancement.txt",
     "image_notion": "workflows/recipe/image_extraction/notion.txt",
     "image_workflow": "workflows/recipe/image_extraction/workflow.txt",
     # システム・共通プロンプト
@@ -42,97 +38,36 @@ PROMPT_FILE_MAPPING = {
     "system": "core/system.txt",
 }
 
-# 基本的な変数置換用のデフォルト値
+# 実際に使用されている変数のみ
 DEFAULT_VARIABLES = {
+    # エージェント基本情報
     "agent_name": "root_agent",
     "basic_principles": "ユーザーの質問に正確かつ丁寧に答えます。",
     "available_tools": "利用可能なツールを活用して最適な支援を提供します。",
     "available_functions": "add, subtract, multiply, divide",
-    "this": "計算関数",
+    
+    # Notion関連
     "recipe_database_id": "1f79a940-1325-80d9-93c6-c33da454f18f",
     "required_tools": "notion_create_page_mcp",
-    "required_fields": "名前、材料、手順",
-    "target_format": "Notion データベース形式",
     "primary_tool": "notion_create_page_mcp",
     "forbidden_tools": "notion_create_page, create",
-    "error_prevention_rule": (
-        "汎用ツールを使用すると「missing required parameters」エラーが発生します"
-    ),
-    "agent_description": "Notionデータベースに対する操作を行う専門エージェント",
-    "optional_fields": "人数、調理時間、保存期間、URL",
-    "validation_rules": (
-        "必須パラメータの存在チェック、データ型の検証、文字列の長さチェック"
-    ),
-    "notion_token_env": "NOTION_TOKEN",
-    "required_params": "名前、材料、手順",
-    "recipe_tool": "notion_create_page_mcp",
-    "generic_tools": "notion_create_page, create",
-    "error_prevention": (
-        "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
-    ),
-    "recipe_extraction_desc": (
-        "URLからレシピを抽出してNotionデータベースに登録します。"
-    ),
-    "image_recipe_extraction_desc": (
-        "画像からレシピを抽出してNotionデータベースに登録します。"
-    ),
-    # テンプレート変数を追加
-    "extraction_type": "レシピ情報",
-    "extraction_description": "レシピ抽出の専門家",
-    "source_type": "Webページ",
-    "extraction_targets": "レシピの名前、材料、手順",
-    "extraction_process": "Webページを解析してレシピ情報を抽出します",
-    "output_format": "JSON形式での構造化データ",
-    "special_processing_rules": "料理に関する専門知識を活用します",
-    # パイプライン変数を追加
-    "pipeline_name": "ImageRecipePipeline",
-    "image_analysis_principle": "画像から料理の詳細を正確に抽出する",
-    "analysis_principle": "画像から実際に確認できる情報のみ",
-    # デフォルト値を追加
-    "default_values": {
-        "name": "不明なレシピ",
-        "ingredients": "材料情報なし",
-        "instructions": "調理手順なし",
+    "error_prevention_rule": "汎用ツールを使用すると「missing required parameters」エラーが発生します",
+    
+    # ワークフロー説明
+    "workflow_descriptions": {
+        "recipe_extraction": "URLからレシピを抽出してNotionデータベースに登録します。",
+        "image_recipe_extraction": "画像からレシピを抽出してNotionデータベースに登録します。",
     },
-    # Notion制限値を追加
-    "notion_limits": {
-        "rich_text_max": "2000",
-    },
-    # システムプロンプト変数を追加
+    
+    # システム情報
     "ai_role": "高性能AIアシスタント",
     "system_purpose": "様々なタスクを実行する様々な専門エージェントの基盤",
     "supported_languages": "日本語、英語",
     "primary_language": "日本語",
-    # ワークフロー専用変数を追加
-    "input_context": "extracted_recipe_data",
-    "input_data_key": "extracted_image_data",
-    "output_format_key": "enhanced_recipe_data",
-    "fidelity_principle": "画像から確認できた情報のみをもとに整理",
+    
+    # 画像分析関連
+    "analysis_principle": "画像から実際に確認できる情報のみ",
     "image_fidelity_principle": "画像から確認できた情報のみを忠実に登録",
-    "forbidden_actions": [
-        "見えない材料の推測による追加",
-        "一般的な知識による手順の補完",
-        "数値項目の推測値設定",
-        "創作的な料理名の付与",
-    ],
-    # テンプレートシステム変数
-    "workflow_name": "レシピ処理ワークフロー",
-    "workflow_description": "レシピ情報を処理するワークフローを管理するエージェント",
-    "workflow_type_description": "URLから抽出されたレシピデータ",
-    "pipeline_steps": "1. データ抽出 → 2. データ変換 → 3. Notion登録",
-    "error_prevention_strategy": (
-        "各ステップでデータ検証を実行し、エラーを未然に防ぐ"
-    ),
-    "success_criteria": "Notionデータベースにレシピが正常に登録されること",
-    "failure_handling": "エラー発生時は詳細なエラーメッセージをユーザーに提供",
-    "workflow_descriptions": {
-        "recipe_extraction": (
-            "URLからレシピを抽出してNotionデータベースに登録します。"
-        ),
-        "image_recipe_extraction": (
-            "画像からレシピを抽出してNotionデータベースに登録します。"
-        ),
-    },
 }
 
 # デフォルトのビジョンプロンプト
@@ -157,9 +92,8 @@ DEFAULT_VISION_PROMPT = """
 
 class PromptManager:
     """シンプルなプロンプト管理クラス
-
-    テンプレート継承なしの直接的なファイル読み込みのみを行います。
-    基本的な変数置換機能も提供します。
+    
+    基本的なファイル読み込みと簡単な変数置換機能のみを提供します。
     """
 
     def __init__(self):
@@ -169,222 +103,152 @@ class PromptManager:
         )
         self._cache = {}
 
-    def _extract_file_variables(self, content: str) -> Dict[str, str]:
-        """ファイル内のYAMLメタデータから変数を抽出
-
+    def _extract_yaml_variables(self, content: str) -> Dict[str, str]:
+        """YAMLメタデータから変数を抽出
+        
         Args:
             content: ファイルの内容
-
+            
         Returns:
-            Dict[str, str]: 変数名と値のディクショナリ
+            Dict[str, str]: 抽出された変数
         """
         variables = {}
-
+        
         # YAMLメタデータセクションを抽出
         yaml_match = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
         if yaml_match:
             try:
                 yaml_content = yaml_match.group(1)
                 yaml_data = yaml.safe_load(yaml_content)
-
+                
                 if isinstance(yaml_data, dict) and "variables" in yaml_data:
                     file_variables = yaml_data["variables"]
                     if isinstance(file_variables, dict):
-                        for key, value in file_variables.items():
-                            variables[key] = str(value)
-
+                        variables.update(file_variables)
             except (yaml.YAMLError, AttributeError) as e:
                 logger.warning(f"YAML解析中にエラー: {e}")
-
+        
         return variables
 
-    def _replace_variables_with_dict(
-        self, prompt: str, variables: Dict[str, str]
-    ) -> str:
-        """辞書を使用して変数を置換
-
+    def _replace_simple_variables(self, content: str, variables: Dict[str, str]) -> str:
+        """基本的な変数置換を実行
+        
         Args:
-            prompt: 変数を含むプロンプトテキスト
+            content: プロンプトテキスト
             variables: 変数辞書
-
+            
         Returns:
-            str: 変数置換済みのプロンプトテキスト
+            str: 変数置換済みテキスト
         """
-        # 基本的な{{variable}}形式の変数を置換
+        # {{variable}}形式の基本変数を置換
         for var_name, var_value in variables.items():
             if isinstance(var_value, dict):
-                # ネストされた辞書の場合（複数レベル対応）
-                prompt = self._replace_nested_dict_variables(
-                    prompt, var_name, var_value
-                )
-            elif isinstance(var_value, list):
-                # リストの場合（配列アクセス処理はスキップ）
-                continue
+                # 1階層のネスト変数のみ対応
+                for nested_key, nested_value in var_value.items():
+                    pattern = f"{{{{{var_name}.{nested_key}}}}}"
+                    content = content.replace(pattern, str(nested_value))
             else:
                 pattern = f"{{{{{var_name}}}}}"
-                prompt = prompt.replace(pattern, str(var_value))
+                content = content.replace(pattern, str(var_value))
+        
+        return content
 
-        # テンプレートブロックを処理
-        prompt = self._process_template_blocks(prompt)
-
-        # 未置換の変数パターンがないか確認してログ出力
-        remaining_vars = re.findall(r"\{\{([^}]+)\}\}", prompt)
-        if remaining_vars:
-            logger.warning(f"未置換の変数が残っています: {remaining_vars}")
-
-        return prompt
-
-    def _replace_nested_dict_variables(
-        self, prompt: str, prefix: str, value_dict: dict
-    ) -> str:
-        """ネストされた辞書変数を再帰的に置換
-
+    def _clean_content(self, content: str) -> str:
+        """コンテンツのクリーンアップ
+        
         Args:
-            prompt: プロンプトテキスト
-            prefix: 変数のプレフィックス
-            value_dict: 辞書値
-
+            content: プロンプトテキスト
+            
         Returns:
-            str: 置換後のプロンプトテキスト
+            str: クリーンアップ済みテキスト
         """
-        for nested_key, nested_value in value_dict.items():
-            if isinstance(nested_value, dict):
-                # さらにネストされている場合は再帰的に処理
-                prompt = self._replace_nested_dict_variables(
-                    prompt, f"{prefix}.{nested_key}", nested_value
-                )
-            else:
-                pattern = f"{{{{{prefix}.{nested_key}}}}}"
-                prompt = prompt.replace(pattern, str(nested_value))
-
-        return prompt
-
-    def _process_template_blocks(self, prompt: str) -> str:
-        """テンプレートブロックを処理
-
-        Args:
-            prompt: プロンプトテキスト
-
-        Returns:
-            str: ブロック処理済みのプロンプトテキスト
-        """
-        # {{override: ...}} と {{/override}} の間のブロックの内容を展開
-        prompt = re.sub(
+        # YAMLメタデータセクションを削除
+        if content.startswith("---\n"):
+            parts = content.split("---\n", 2)
+            if len(parts) >= 3:
+                content = parts[2]
+        
+        # シンプルなテンプレートブロック処理
+        # {{override: ...}} と {{/override}} の間の内容を展開
+        content = re.sub(
             r"\{\{override:.*?\}\}(.*?)\{\{/override\}\}",
             r"\1",
-            prompt,
+            content,
             flags=re.DOTALL,
         )
-
-        # {{block: ...}} と {{/block}} の間のブロックの内容を展開
-        prompt = re.sub(
+        
+        # {{block: ...}} と {{/block}} の間の内容を展開
+        content = re.sub(
             r"\{\{block:.*?\}\}(.*?)\{\{/block\}\}",
             r"\1",
-            prompt,
+            content,
             flags=re.DOTALL,
         )
-
-        # YAMLメタデータセクション（先頭の---で囲まれた部分）を削除
-        if prompt.startswith("---\n"):
-            # 最初の --- から次の --- までを削除
-            parts = prompt.split("---\n", 2)
-            if len(parts) >= 3:
-                prompt = parts[2]  # メタデータ後の本文のみを保持
-
-        return prompt.strip()
-
-    def _replace_variables(self, prompt: str) -> str:
-        """プロンプト内の変数を置換（後方互換性のため）
-
-        Args:
-            prompt: 変数を含むプロンプトテキスト
-
-        Returns:
-            str: 変数置換済みのプロンプトテキスト
-        """
-        return self._replace_variables_with_dict(prompt, DEFAULT_VARIABLES)
+        
+        return content.strip()
 
     def get_prompt(
         self, key: str, custom_variables: Optional[Dict[str, str]] = None
     ) -> str:
         """指定されたキーのプロンプトを取得
-
+        
         Args:
             key: プロンプトのキー
-            custom_variables: エージェント固有の変数（オプション）
-
+            custom_variables: カスタム変数（オプション）
+            
         Returns:
             str: プロンプトテキスト（変数置換済み）
-
+            
         Raises:
             ValueError: 指定されたキーが存在しない場合
         """
-        # カスタム変数がある場合はキャッシュを無効化
-        if custom_variables:
-            # ユニークなキャッシュキーを生成
-            import json
-
-            try:
-                custom_str = json.dumps(
-                    custom_variables, sort_keys=True, default=str
-                )
-                cache_key = f"{key}_{hash(custom_str)}"
-            except (TypeError, ValueError):
-                # JSONシリアライズできない場合は文字列化
-                cache_key = f"{key}_{hash(str(custom_variables))}"
-        else:
-            cache_key = key
-
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
-        # マッピングから実際のファイルパスを取得
         if key not in PROMPT_FILE_MAPPING:
             raise ValueError(f"未知のプロンプトキー: {key}")
-
+        
+        # キャッシュキー生成
+        cache_key = key
+        if custom_variables:
+            cache_key = f"{key}_{hash(str(sorted(custom_variables.items())))}"
+        
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         file_path = os.path.join(self.prompts_dir, PROMPT_FILE_MAPPING[key])
-
+        
         try:
-            prompt = read_prompt_file(file_path)
-
-            # ファイル内の変数を抽出
-            file_variables = self._extract_file_variables(prompt)
-
-            # 変数置換の優先順位: カスタム変数 > ファイル変数 > デフォルト変数
+            # ファイル読み込み
+            content = read_prompt_file(file_path)
+            
+            # YAMLメタデータから変数を抽出
+            file_variables = self._extract_yaml_variables(content)
+            
+            # 変数を統合（優先順位: カスタム > ファイル > デフォルト）
             all_variables = {**DEFAULT_VARIABLES, **file_variables}
             if custom_variables:
                 all_variables.update(custom_variables)
-
-            # 最初の変数置換（{{variable}}形式の単純な置換）
-            prompt = self._replace_variables_with_dict(prompt, all_variables)
-
-            # 二重参照の解決（{{{{variable}}}}形式）
-            for var_name, var_value in all_variables.items():
-                value_str = str(var_value)
-                if value_str.startswith("{{") and value_str.endswith("}}"):
-                    # {{variable}}形式の値を持つ変数を再度置換
-                    nested_var = value_str[2:-2]  # {{}}を除去
-                    if nested_var in all_variables:
-                        all_variables[var_name] = str(
-                            all_variables[nested_var]
-                        )
-
-            # 二度目の変数置換（二重参照を解決）
-            prompt = self._replace_variables_with_dict(prompt, all_variables)
-
-            self._cache[cache_key] = prompt
+            
+            # 変数置換
+            content = self._replace_simple_variables(content, all_variables)
+            
+            # コンテンツクリーンアップ
+            content = self._clean_content(content)
+            
+            # 未置換変数の警告
+            remaining_vars = re.findall(r"\{\{([^}]+)\}\}", content)
+            if remaining_vars:
+                logger.warning(f"未置換の変数が残っています: {remaining_vars}")
+            
+            self._cache[cache_key] = content
             logger.info(f"プロンプト '{key}' を正常に読み込みました")
-            return prompt
+            return content
+            
         except FileNotFoundError:
             logger.error(f"プロンプトファイルが見つかりません: {file_path}")
-            # ビジョンプロンプトには特別なデフォルト値を設定
             if key == "vision":
                 self._cache[key] = DEFAULT_VISION_PROMPT
                 return DEFAULT_VISION_PROMPT
             else:
-                error_msg = (
-                    f"Error: プロンプトファイル '{key}' が見つかりません"
-                )
+                error_msg = f"Error: プロンプトファイル '{key}' が見つかりません"
                 self._cache[key] = error_msg
                 return error_msg
         except Exception as e:
@@ -395,7 +259,7 @@ class PromptManager:
 
     def get_all_prompts(self) -> Dict[str, str]:
         """すべてのプロンプトを一括で読み込む
-
+        
         Returns:
             Dict[str, str]: キーとプロンプトテキストのディクショナリ
         """

@@ -36,6 +36,16 @@ spec:
           value: "true"
         - name: MCP_TIMEOUT_SECONDS
           value: "30"
+        - name: LINE_CHANNEL_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: line-channel-access-token
+              key: latest
+        - name: LINE_CHANNEL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: line-channel-secret
+              key: latest
         resources:
           limits:
             cpu: "1"
@@ -51,7 +61,7 @@ spec:
         - -c
         - |
           set -e
-          echo "Installing Filesystem MCP Server and supergateway..."
+          echo "Installing Filesystem MCP Server and ..."
           npm install -g @modelcontextprotocol/server-filesystem supergateway
           echo "Starting Filesystem MCP Server with supergateway on port 8000..."
           exec npx supergateway --stdio "npx @modelcontextprotocol/server-filesystem /tmp" --port 8000 --healthEndpoint /health
@@ -83,8 +93,11 @@ spec:
             exit 1
           fi
           echo "NOTION_TOKEN is set (length: ${#NOTION_TOKEN})"
-          echo "Setting NOTION_API_KEY from NOTION_TOKEN for MCP server compatibility..."
-          export NOTION_API_KEY="$NOTION_TOKEN"
+          # トークンを整形し、OPENAPI_MCP_HEADERSを設定
+          CLEAN_TOKEN=$(echo "$NOTION_TOKEN" | tr -d '\n\r' | xargs)
+          echo "Setting up OPENAPI_MCP_HEADERS environment variable for MCP Server..."
+          export OPENAPI_MCP_HEADERS="{\"Authorization\":\"Bearer ${CLEAN_TOKEN}\",\"Notion-Version\":\"2022-06-28\"}"
+          echo "OPENAPI_MCP_HEADERS configured: $(echo $OPENAPI_MCP_HEADERS | sed 's/Bearer [^\"]*\"/Bearer ***\"/')"
           echo "Testing Notion MCP Server directly..."
           timeout 10s npx @notionhq/notion-mcp-server || echo "Direct test completed"
           echo "Starting Notion MCP Server with supergateway on port 3001..."

@@ -38,7 +38,7 @@ class TestPromptManager:
         )
         assert self.prompt_manager.prompts_dir.endswith("prompts")
 
-    def test_extract_file_variables_with_yaml(self):
+    def test_extract_yaml_variables_with_yaml(self):
         """YAMLメタデータからの変数抽出テスト"""
         content = """---
 variables:
@@ -48,21 +48,21 @@ variables:
 ---
 This is the prompt content with {{test_var}}."""
 
-        variables = self.prompt_manager._extract_file_variables(content)
+        variables = self.prompt_manager._extract_yaml_variables(content)
 
         assert variables["test_var"] == "test_value"
-        assert variables["number_var"] == "123"
-        assert variables["bool_var"] == "True"
+        assert variables["number_var"] == 123
+        assert variables["bool_var"] == True
 
-    def test_extract_file_variables_no_yaml(self):
+    def test_extract_yaml_variables_no_yaml(self):
         """YAMLメタデータがない場合のテスト"""
         content = "This is a simple prompt without YAML metadata."
 
-        variables = self.prompt_manager._extract_file_variables(content)
+        variables = self.prompt_manager._extract_yaml_variables(content)
 
         assert variables == {}
 
-    def test_extract_file_variables_invalid_yaml(self):
+    def test_extract_yaml_variables_invalid_yaml(self):
         """不正なYAMLの場合のテスト"""
         content = """---
 invalid: yaml: content: [
@@ -70,12 +70,12 @@ invalid: yaml: content: [
 Prompt content"""
 
         with patch("src.agents.prompt_manager.logger") as mock_logger:
-            variables = self.prompt_manager._extract_file_variables(content)
+            variables = self.prompt_manager._extract_yaml_variables(content)
 
             assert variables == {}
             mock_logger.warning.assert_called_once()
 
-    def test_extract_file_variables_no_variables_section(self):
+    def test_extract_yaml_variables_no_variables_section(self):
         """variablesセクションがないYAMLのテスト"""
         content = """---
 title: Test Prompt
@@ -83,103 +83,79 @@ description: This is a test
 ---
 Prompt content"""
 
-        variables = self.prompt_manager._extract_file_variables(content)
+        variables = self.prompt_manager._extract_yaml_variables(content)
 
         assert variables == {}
 
-    def test_replace_variables_with_dict_simple(self):
+    def test_replace_simple_variables_simple(self):
         """基本的な変数置換のテスト"""
         prompt = "Hello {{name}}, welcome to {{place}}!"
         variables = {"name": "Alice", "place": "Tokyo"}
 
-        result = self.prompt_manager._replace_variables_with_dict(
+        result = self.prompt_manager._replace_simple_variables(
             prompt, variables
         )
 
         assert result == "Hello Alice, welcome to Tokyo!"
 
-    def test_replace_variables_with_dict_nested_dict(self):
+    def test_replace_simple_variables_nested_dict(self):
         """ネストされた辞書変数の置換テスト"""
         prompt = "Config: {{config.host}}:{{config.port}}"
         variables = {"config": {"host": "localhost", "port": "8080"}}
 
-        result = self.prompt_manager._replace_variables_with_dict(
+        result = self.prompt_manager._replace_simple_variables(
             prompt, variables
         )
 
         assert result == "Config: localhost:8080"
 
-    def test_replace_variables_with_dict_list_ignored(self):
-        """リスト変数が無視されることのテスト"""
+    def test_replace_simple_variables_list_converted(self):
+        """リスト変数が文字列として変換されることのテスト"""
         prompt = "Items: {{items}}"
         variables = {"items": ["item1", "item2", "item3"]}
 
-        result = self.prompt_manager._replace_variables_with_dict(
+        result = self.prompt_manager._replace_simple_variables(
             prompt, variables
         )
 
-        # リストは処理されずそのまま残る
-        assert result == "Items: {{items}}"
+        # リストは文字列として変換される
+        assert result == "Items: ['item1', 'item2', 'item3']"
 
-    def test_replace_variables_with_dict_unresolved_warning(self):
-        """未解決変数の警告テスト"""
-        prompt = "Hello {{name}}, {{unresolved}} variable here"
-        variables = {"name": "Alice"}
+    def test_get_prompt_unresolved_warning(self):
+        """未解決変数の警告テスト（get_promptレベルでのテスト）"""
+        with patch("src.agents.prompt_manager.read_prompt_file") as mock_read_file:
+            mock_read_file.return_value = "Hello {{name}}, {{unresolved}} variable here"
+            
+            with patch("src.agents.prompt_manager.logger") as mock_logger:
+                result = self.prompt_manager.get_prompt("root", {"name": "Alice"})
+                
+                assert "Hello Alice, {{unresolved}} variable here" in result
+                mock_logger.warning.assert_called_once()
+                args = mock_logger.warning.call_args[0][0]
+                assert "未置換の変数が残っています" in args
+                assert "unresolved" in args
 
-        with patch("src.agents.prompt_manager.logger") as mock_logger:
-            result = self.prompt_manager._replace_variables_with_dict(
-                prompt, variables
-            )
 
-            assert result == "Hello Alice, {{unresolved}} variable here"
-            mock_logger.warning.assert_called_once()
-            args = mock_logger.warning.call_args[0][0]
-            assert "未置換の変数が残っています" in args
-            assert "unresolved" in args
-
-    def test_replace_nested_dict_variables(self):
-        """ネストされた辞書変数の置換テスト"""
-        prompt = "Server: {{server.host}}:{{server.port}}, DB: {{db.name}}"
-        server_dict = {"host": "example.com", "port": "3000"}
-
-        result = self.prompt_manager._replace_nested_dict_variables(
-            prompt, "server", server_dict
-        )
-
-        assert "example.com:3000" in result
-        assert "{{db.name}}" in result  # これは置換されない
-
-    def test_replace_nested_dict_variables_deep_nesting(self):
-        """深いネストの辞書変数テスト"""
-        prompt = "Value: {{config.database.connection.host}}"
-        config_dict = {"database": {"connection": {"host": "db.example.com"}}}
-
-        result = self.prompt_manager._replace_nested_dict_variables(
-            prompt, "config", config_dict
-        )
-
-        assert result == "Value: db.example.com"
-
-    def test_process_template_blocks_override(self):
+    def test_clean_content_override(self):
         """overrideブロックの処理テスト"""
         prompt = (
             "Before {{override: test}}Content inside override"
             "{{/override}} After"
         )
 
-        result = self.prompt_manager._process_template_blocks(prompt)
+        result = self.prompt_manager._clean_content(prompt)
 
         assert result == "Before Content inside override After"
 
-    def test_process_template_blocks_block(self):
+    def test_clean_content_block(self):
         """blockブロックの処理テスト"""
         prompt = "Before {{block: test}}Content inside block{{/block}} After"
 
-        result = self.prompt_manager._process_template_blocks(prompt)
+        result = self.prompt_manager._clean_content(prompt)
 
         assert result == "Before Content inside block After"
 
-    def test_process_template_blocks_yaml_removal(self):
+    def test_clean_content_yaml_removal(self):
         """YAMLメタデータ削除のテスト"""
         prompt = """---
 title: Test
@@ -188,13 +164,13 @@ variables:
 ---
 This is the actual prompt content."""
 
-        result = self.prompt_manager._process_template_blocks(prompt)
+        result = self.prompt_manager._clean_content(prompt)
 
         assert result == "This is the actual prompt content."
         assert "---" not in result
         assert "title:" not in result
 
-    def test_process_template_blocks_multiline_content(self):
+    def test_clean_content_multiline_content(self):
         """複数行のブロック処理テスト"""
         prompt = """{{override: test}}
 Multi-line
@@ -202,21 +178,13 @@ content inside
 override block
 {{/override}}"""
 
-        result = self.prompt_manager._process_template_blocks(prompt)
+        result = self.prompt_manager._clean_content(prompt)
 
         expected = """Multi-line
 content inside
 override block"""
         assert result.strip() == expected
 
-    def test_replace_variables_backward_compatibility(self):
-        """後方互換性のテスト"""
-        prompt = "Agent: {{agent_name}}, Principles: {{basic_principles}}"
-
-        result = self.prompt_manager._replace_variables(prompt)
-
-        assert "root_agent" in result
-        assert "ユーザーの質問に正確かつ丁寧に答えます" in result
 
     @patch("src.agents.prompt_manager.read_prompt_file")
     def test_get_prompt_success(self, mock_read_file):
@@ -352,22 +320,6 @@ override block"""
                 "プロンプトキャッシュをクリアしました"
             )
 
-    def test_double_reference_resolution(self):
-        """二重参照解決のテスト"""
-        with patch(
-            "src.agents.prompt_manager.read_prompt_file"
-        ) as mock_read_file:
-            mock_read_file.return_value = "Value: {{resolved_var}}"
-
-            # カスタム変数で二重参照をテスト
-            custom_vars = {
-                "resolved_var": "{{base_var}}",
-                "base_var": "final_value",
-            }
-
-            result = self.prompt_manager.get_prompt("root", custom_vars)
-
-            assert "Value: final_value" in result
 
     def test_yaml_metadata_with_variables(self):
         """YAMLメタデータを含むプロンプトのテスト"""
@@ -389,19 +341,17 @@ variables:
             assert "こんにちは、テストユーザーさん！" == result.strip()
 
     def test_complex_nested_variables(self):
-        """複雑なネスト変数のテスト"""
+        """複雑なネスト変数のテスト（1階層のみサポート）"""
         prompt = (
-            "Server: {{config.server.host}}:{{config.server.port}}, "
-            "Database: {{config.db.name}}"
+            "Server: {{config.host}}:{{config.port}}, "
+            "Database: {{db.name}}"
         )
         variables = {
-            "config": {
-                "server": {"host": "api.example.com", "port": "8080"},
-                "db": {"name": "production_db"},
-            }
+            "config": {"host": "api.example.com", "port": "8080"},
+            "db": {"name": "production_db"},
         }
 
-        result = self.prompt_manager._replace_variables_with_dict(
+        result = self.prompt_manager._replace_simple_variables(
             prompt, variables
         )
 
@@ -457,3 +407,32 @@ class TestPromptManagerConstants:
         assert isinstance(DEFAULT_VISION_PROMPT, str)
         assert len(DEFAULT_VISION_PROMPT.strip()) > 0
         assert "画像認識の専門家" in DEFAULT_VISION_PROMPT
+
+    def test_get_all_prompts_with_read_error(self):
+        """get_all_prompts でファイル読み込みエラーが発生した場合のテスト"""
+        
+        prompt_manager = PromptManager()
+        
+        # PROMPT_FILE_MAPPINGに存在しないプロンプトキーを一時的に追加
+        original_mapping = dict(PROMPT_FILE_MAPPING)
+        PROMPT_FILE_MAPPING['error_test'] = 'nonexistent.path'
+        
+        try:
+            with patch('src.agents.prompt_manager.read_prompt_file') as mock_read_file:
+                def side_effect(path):
+                    if 'nonexistent.path' in path:
+                        raise Exception("File read error")
+                    return "valid content"
+                
+                mock_read_file.side_effect = side_effect
+                
+                prompts = prompt_manager.get_all_prompts()
+                
+                # エラーが発生したプロンプトはError loading prompt:で始まる
+                assert 'error_test' in prompts
+                assert prompts['error_test'].startswith("Error loading prompt:")
+                assert "File read error" in prompts['error_test']
+        finally:
+            # 元の状態に戻す
+            PROMPT_FILE_MAPPING.clear()
+            PROMPT_FILE_MAPPING.update(original_mapping)

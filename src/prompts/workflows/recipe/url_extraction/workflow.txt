@@ -5,9 +5,9 @@ last_updated: 2025-05-31
 description: レシピワークフローエージェント指示書
 workflow_type: url_recipe_extraction
 variables:
-  recipe_database_id: "{{recipe_database_id}}"
-  required_tools: "{{required_tools}}"
-  error_prevention: "{{error_prevention}}"
+  recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
+  required_tools: "notion_create_page_mcp"
+  error_prevention: "missing required parametersエラーを防ぐため、内部で専用ツールを使用"
 ---
 
 # レシピワークフローエージェント指示書

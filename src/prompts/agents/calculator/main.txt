@@ -6,7 +6,7 @@ description: 計算エージェント指示書
 extends: templates/agent_base.txt
 variables:
   agent_name: "{{agent_name}}"
-  available_functions: "{{available_functions}}"
+  available_functions: "add, subtract, multiply, divide"
 ---
 
 {{override: custom_principles}}

@@ -525,7 +525,9 @@ class AgentService:
             if event.content.parts[0].text:
                 content_text = event.content.parts[0].text
             else:
-                content_text = ""
+                # function_callのみの応答の場合はスキップ
+                logger.debug("Skipping event with no text content (likely function_call only)")
+                return None
         elif isinstance(event.content, list) and len(event.content) > 0:
             # event.contentがリストの場合
             if hasattr(event.content[0], "text"):
@@ -534,7 +536,9 @@ class AgentService:
                 if event.content[0].parts[0].text:
                     content_text = event.content[0].parts[0].text
                 else:
-                    content_text = ""
+                    # function_callのみの応答の場合はスキップ
+                    logger.debug("Skipping event with no text content in list format")
+                    return None
         elif hasattr(event.content, "text"):
             # event.contentが直接テキストを持つ場合
             content_text = event.content.text
@@ -556,8 +560,12 @@ class AgentService:
         if "SequentialAgent" in author:
             sequential_step_count += 1
 
-        # すべての応答を記録
-        all_responses.append(content_text)
+        # 空でない応答のみを記録
+        if content_text and content_text.strip():
+            all_responses.append(content_text)
+        else:
+            logger.debug("Skipping empty or whitespace-only response")
+            return None
 
         # 最終応答の判定
         if self.is_completion_response(content_text):

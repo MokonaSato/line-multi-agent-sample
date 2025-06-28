@@ -308,7 +308,7 @@ except ValueError as e:
 - API 仕様の変更時は API 仕様書も更新
 - 重要な変更は README.md にも反映
 
-## Gemini CLIとのペアプログラミング
-- Gemini CLIを下記コマンドで呼び出し、必ず相談しながらペアプログラミングを実施すること
-    - `gemini --prompt "prompt"`
-    - e.g. `gemini --prompt "explain this project"`
+## 10. Claude Codeとのペアプログラミング
+- Claude Codeを下記コマンドで呼び出し、必ず相談しながらペアプログラミングを実施すること
+  - `claude "prompt"`
+  - e.g. `claude "explain this project"`

@@ -8,7 +8,7 @@ extends: templates/notion_base.txt
 variables:
   agent_name: "レシピ登録専用 Notion エージェント"
   agent_description: "レシピデータをNotionの料理レシピデータベースに登録する専門エージェント"
-  recipe_database_id: "{{recipe_database_id}}"
+  recipe_database_id: "1f79a940-1325-80d9-93c6-c33da454f18f"
   primary_tool: "notion_create_page_mcp"
   forbidden_tools: "notion_create_page, create"
   input_source: "前のエージェントから受け取ったレシピデータ"
